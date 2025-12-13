@@ -2,7 +2,13 @@
 
 ## Overview
 
-local-ai wraps mlx-lm's built-in server to provide systemctl-like process management for serving OpenAI-compatible LLM endpoints on Apple Silicon.
+local-ai wraps MLX Omni Server to provide systemctl-like process management for serving OpenAI and Anthropic-compatible LLM endpoints on Apple Silicon.
+
+**Why MLX Omni Server over mlx-lm's built-in server:**
+- **Dual API support**: Native OpenAI (`/v1/*`) and Anthropic (`/anthropic/v1/*`) endpoints
+- **Performance**: FastAPI-based, ~2ms for `/v1/models` (vs ~5000ms with mlx-lm server)
+- **KV-cache management**: Intelligent cache trimming for efficient memory use
+- **Production readiness**: Async, robust error handling
 
 ```mermaid
 flowchart TB
@@ -20,19 +26,25 @@ flowchart TB
     end
 
     subgraph External[External]
-        MLX[mlx_lm.server subprocess]
+        OMNI[mlx-omni-server subprocess]
         TOML[config.toml]
         PID[server.pid]
+    end
+
+    subgraph APIs[API Endpoints]
+        OPENAI["/v1/*" OpenAI API]
+        ANTHROPIC["/anthropic/v1/*" Anthropic API]
     end
 
     MAIN --> START & STOP & STATUS
     START --> CONFIG --> MANAGER
     STOP --> MANAGER
     STATUS --> MANAGER --> HEALTH
-    MANAGER --> MLX
+    MANAGER --> OMNI
     MANAGER --> PID
     CONFIG --> TOML
-    HEALTH -.-> MLX
+    HEALTH -.-> OMNI
+    OMNI --> OPENAI & ANTHROPIC
 ```
 
 ## Component Architecture
@@ -55,7 +67,7 @@ flowchart TB
 
 | File | Responsibility |
 |------|----------------|
-| `manager.py` | Process lifecycle: spawn, signal, PID file management |
+| `manager.py` | Process lifecycle: spawn mlx-omni-server, signal, PID file management |
 | `health.py` | Health check via `/v1/models` endpoint |
 
 ## Configuration Schema
@@ -125,7 +137,26 @@ stateDiagram-v2
 |------|------|---------|
 | Config | `~/.config/local-ai/config.toml` | User configuration |
 | PID | `~/.local/state/local-ai/server.pid` | Process ID for lifecycle |
-| Logs | `~/.local/state/local-ai/server.log` | Server stdout/stderr |
+| Logs | `~/.local/state/local-ai/logs/` | Server stdout/stderr |
+
+## API Endpoints
+
+MLX Omni Server exposes two API families:
+
+### OpenAI-Compatible (`/v1/*`)
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/v1/models` | GET | List available models |
+| `/v1/chat/completions` | POST | Chat completion (streaming supported) |
+| `/v1/completions` | POST | Text completion |
+
+### Anthropic-Compatible (`/anthropic/v1/*`)
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/anthropic/v1/models` | GET | List models (Anthropic format) |
+| `/anthropic/v1/messages` | POST | Messages API (streaming supported) |
 
 ## API Contracts
 
@@ -172,6 +203,22 @@ def load_config(
 ) -> LocalAISettings: ...
 ```
 
+## Server Command Construction
+
+The manager spawns `mlx-omni-server` with appropriate arguments:
+
+```python
+# Use MLX Omni Server for dual OpenAI/Anthropic API support
+# Note: mlx-omni-server loads models dynamically per request
+cmd = [
+    "mlx-omni-server",
+    "--host", self._settings.server.host,
+    "--port", str(self._settings.server.port),
+]
+```
+
+**Note:** Unlike mlx-lm's server, mlx-omni-server doesn't take a `--model` argument. Models are loaded dynamically when requests include the model name in the request body (e.g., `{"model": "mlx-community/Orchestrator-8B-8bit", ...}`).
+
 ## Error Handling Strategy
 
 ### Error Hierarchy
@@ -206,13 +253,22 @@ To fix:
 
 | Package | Version | Purpose |
 |---------|---------|---------|
-| mlx-lm | >=0.28.4 | MLX model serving |
+| mlx-omni-server | >=0.0.7 | MLX model serving with dual API |
+| mlx-lm | <0.28.3 | MLX model utilities (required by mlx-omni-server) |
 | typer | >=0.15.0 | CLI framework |
 | rich | >=13.0.0 | Console output |
 | pydantic | >=2.0.0 | Data validation |
 | pydantic-settings | >=2.0.0 | Config loading |
 | httpx | >=0.28.0 | HTTP client for health |
 | psutil | >=6.0.0 | Process utilities |
+
+### Installation Notes
+
+For Python 3.14 compatibility:
+```bash
+PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 uv pip install mlx-omni-server
+uv pip install "mlx-lm<0.28.3"  # Required due to API change in 0.28.3+
+```
 
 ## Testing Strategy
 
@@ -232,6 +288,7 @@ To fix:
 |------|-------|
 | Full lifecycle | start → status → stop with real subprocess |
 | Health check | Actual HTTP request to running server |
+| Dual API | Both OpenAI and Anthropic endpoints respond |
 
 ### Mocking Strategy
 
@@ -239,6 +296,26 @@ To fix:
 - **httpx.get**: Mock for unit tests, real for integration
 - **os.kill**: Mock for unit tests to avoid killing real processes
 - **PID file**: Use temp directory for isolation
+
+## Migration from mlx-lm server
+
+### What Changes
+
+| Aspect | Before (mlx-lm) | After (mlx-omni-server) |
+|--------|-----------------|-------------------------|
+| Command | `python -m mlx_lm.server` | `python -m mlx_omni_server` |
+| Framework | BaseHTTPServer | FastAPI (uvicorn) |
+| OpenAI API | `/v1/*` | `/v1/*` (same) |
+| Anthropic API | Not available | `/anthropic/v1/*` |
+| Performance | ~5000ms for `/v1/models` | ~2ms for `/v1/models` |
+
+### What Stays the Same
+
+- Configuration schema and TOML format
+- CLI interface (`local-ai server start|stop|status`)
+- PID file management
+- Health check mechanism (still queries `/v1/models`)
+- Log file locations
 
 ## Related Documents
 

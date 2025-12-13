@@ -89,14 +89,16 @@ Trade-off principle: Optimize for tokens/sec first, then balance other metrics.
 
 | Tool | Integration Method |
 |------|-------------------|
-| Zed Editor | OpenAI-compatible API endpoint |
-| Black Goose AI CLI | OpenAI-compatible API endpoint |
-| Claude Code | LiteLLM proxy (OpenAI → Anthropic translation) |
+| Zed Editor | OpenAI-compatible API endpoint (`/v1/*`) |
+| Black Goose AI CLI | OpenAI-compatible API endpoint (`/v1/*`) |
+| Claude Code | Anthropic-compatible API endpoint (`/anthropic/v1/*`) |
+
+**Note**: MLX Omni Server provides both OpenAI and Anthropic API endpoints natively, eliminating the need for a LiteLLM proxy.
 
 ## Technical Constraints
 
 - **Python**: 3.14.2 (latest stable)
-- **ML Backend**: mlx-lm (Metal-optimized)
+- **ML Backend**: MLX Omni Server (wraps mlx-lm for Metal-optimized inference)
 - **API**: OpenAI-compatible endpoints
 - **Configuration**: TOML format with Pydantic v2 validation
 - **CLI Framework**: Typer with Rich output

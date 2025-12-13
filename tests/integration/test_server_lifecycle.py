@@ -17,8 +17,8 @@ import pytest
 from typer.testing import CliRunner
 
 from local_ai.cli.main import app
-from local_ai.server.manager import ServerManager
 from local_ai.config.loader import load_config
+from local_ai.server.manager import ServerManager
 
 
 @pytest.fixture
@@ -53,22 +53,24 @@ class TestConfigToCLIIntegration:
     def test_config_file_values_passed_to_server_start(
         self, cli_runner: CliRunner, integration_config_toml: Path, temp_dir: Path
     ) -> None:
-        """Config file host/port/model should be used in subprocess.Popen command."""
+        """Config file host/port should be used in subprocess.Popen command."""
         mock_process = MagicMock()
         mock_process.pid = 12345
         mock_process.poll.return_value = None  # Process is running
 
         with patch("subprocess.Popen", return_value=mock_process) as mock_popen, \
-             patch.object(Path, "home", return_value=temp_dir):
+             patch.object(Path, "home", return_value=temp_dir), \
+             patch("local_ai.server.manager.check_health", return_value="healthy"):
             result = cli_runner.invoke(
                 app,
-                ["server", "start", "--config", str(integration_config_toml)],
+                ["server", "start", "--config", str(integration_config_toml), "--timeout", "5"],
             )
 
         # Verify CLI succeeded
         assert result.exit_code == 0
 
         # Verify Popen was called with config values
+        # Note: mlx-omni-server loads models dynamically, so --model is not in command
         mock_popen.assert_called_once()
         call_args = mock_popen.call_args
         cmd = call_args[0][0]  # First positional argument is the command list
@@ -77,8 +79,6 @@ class TestConfigToCLIIntegration:
         assert "0.0.0.0" in cmd
         assert "--port" in cmd
         assert "9090" in cmd
-        assert "--model" in cmd
-        assert "mlx-community/Llama-3.2-1B-Instruct-4bit" in cmd
 
 
 class TestServerStartStopLifecycle:
@@ -99,9 +99,10 @@ class TestServerStartStopLifecycle:
         mock_process.pid = 99999
         mock_process.poll.return_value = None
 
-        # Start server
-        with patch("subprocess.Popen", return_value=mock_process):
-            start_result = manager.start()
+        # Start server (mock health check to return healthy immediately)
+        with patch("subprocess.Popen", return_value=mock_process), \
+             patch("local_ai.server.manager.check_health", return_value="healthy"):
+            start_result = manager.start(startup_timeout=5.0)
 
         # Verify start succeeded and PID file created
         assert start_result.success is True
@@ -135,9 +136,10 @@ class TestServerStartStopLifecycle:
         mock_process.pid = 77777
         mock_process.poll.return_value = None
 
-        # Start server
-        with patch("subprocess.Popen", return_value=mock_process):
-            manager.start()
+        # Start server (mock health check to return healthy immediately)
+        with patch("subprocess.Popen", return_value=mock_process), \
+             patch("local_ai.server.manager.check_health", return_value="healthy"):
+            manager.start(startup_timeout=5.0)
 
         # Check status (mock os.kill to say process exists)
         with patch("os.kill") as mock_kill:
@@ -168,9 +170,10 @@ class TestServerAlreadyRunningError:
         mock_process.pid = 55555
         mock_process.poll.return_value = None
 
-        # First start
-        with patch("subprocess.Popen", return_value=mock_process):
-            first_result = manager.start()
+        # First start (mock health check to return healthy immediately)
+        with patch("subprocess.Popen", return_value=mock_process), \
+             patch("local_ai.server.manager.check_health", return_value="healthy"):
+            first_result = manager.start(startup_timeout=5.0)
 
         assert first_result.success is True
 
@@ -178,7 +181,7 @@ class TestServerAlreadyRunningError:
         with patch("os.kill") as mock_kill, \
              patch("subprocess.Popen", return_value=mock_process) as mock_popen:
             mock_kill.return_value = None  # Process exists
-            second_result = manager.start()
+            second_result = manager.start(startup_timeout=5.0)
 
         # Verify second start failed
         assert second_result.success is False
