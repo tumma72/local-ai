@@ -4,6 +4,10 @@ import time
 
 import httpx
 
+from local_ai.logging import get_logger
+
+_logger = get_logger("Health")
+
 
 def check_health(host: str, port: int, timeout: float = 5.0) -> str:
     """Check server health via /v1/models endpoint.
@@ -19,12 +23,16 @@ def check_health(host: str, port: int, timeout: float = 5.0) -> str:
         "unknown" if connection fails
     """
     url = f"http://{host}:{port}/v1/models"
+    _logger.debug("Checking health at {}", url)
     try:
         response = httpx.get(url, timeout=timeout)
         if response.status_code == 200:
+            _logger.debug("Health check passed (status=200)")
             return "healthy"
+        _logger.warning("Health check failed: status={}", response.status_code)
         return "unhealthy"
-    except httpx.RequestError:
+    except httpx.RequestError as e:
+        _logger.debug("Health check failed: connection error ({})", type(e).__name__)
         return "unknown"
 
 
@@ -42,12 +50,24 @@ def wait_for_health(
     Returns:
         True if healthy within timeout, False otherwise
     """
+    _logger.info("Waiting for server to become healthy (timeout={}s)", timeout)
     start = time.monotonic()
+    check_count = 0
     while True:
+        check_count += 1
         status = check_health(host, port)
         if status == "healthy":
+            elapsed = time.monotonic() - start
+            _logger.info(
+                "Server became healthy after {:.1f}s ({} checks)",
+                elapsed, check_count,
+            )
             return True
         elapsed = time.monotonic() - start
         if elapsed >= timeout:
+            _logger.warning(
+                "Server did not become healthy within {}s ({} checks)",
+                timeout, check_count,
+            )
             return False
         time.sleep(interval)

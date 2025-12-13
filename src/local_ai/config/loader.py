@@ -17,6 +17,9 @@ from local_ai.config.schema import (
     ModelConfig,
     ServerConfig,
 )
+from local_ai.logging import get_logger
+
+_logger = get_logger("Config")
 
 
 class ConfigError(Exception):
@@ -56,17 +59,26 @@ def load_config(
         ConfigError: If model is not specified anywhere
         ConfigError: If TOML file cannot be parsed
     """
+    _logger.debug(
+        "Loading config: config_path={}, model={}, port={}, host={}",
+        config_path, model, port, host,
+    )
+
     # Load TOML config if available
     toml_config: dict[str, Any] = {}
 
     if config_path:
         # Explicit config path provided
+        _logger.debug("Loading explicit config file: {}", config_path)
         toml_config = _load_toml_file(config_path)
     else:
         # Discover config path
         discovered_path = _discover_config_path()
         if discovered_path:
+            _logger.debug("Discovered config file: {}", discovered_path)
             toml_config = _load_toml_file(discovered_path)
+        else:
+            _logger.debug("No config file found, using defaults")
 
     # Merge configuration with priority: CLI > TOML > defaults
     model_path = model or _get_nested(toml_config, ["model", "path"])
@@ -75,6 +87,7 @@ def load_config(
 
     # Validate that model is specified
     if not model_path:
+        _logger.error("Model is required but not specified")
         raise ConfigError(
             "Model is required but not specified. Provide it via:\n"
             "  1. --model CLI argument\n"
@@ -102,11 +115,16 @@ def load_config(
         GenerationConfig(**generation_dict) if generation_dict else GenerationConfig()
     )
 
-    return LocalAISettings(
+    settings = LocalAISettings(
         server=server_config,
         model=model_config,
         generation=generation_config,
     )
+    _logger.info(
+        "Config loaded: model={}, host={}, port={}",
+        model_path, server_config.host, server_config.port,
+    )
+    return settings
 
 
 def _load_toml_file(path: Path) -> dict[str, Any]:
@@ -123,10 +141,14 @@ def _load_toml_file(path: Path) -> dict[str, Any]:
     """
     try:
         with open(path, "rb") as f:
-            return tomllib.load(f)
+            config = tomllib.load(f)
+            _logger.debug("Successfully loaded TOML file: {}", path)
+            return config
     except FileNotFoundError as e:
+        _logger.error("Config file not found: {}", path)
         raise ConfigError(f"Config file not found: {path}") from e
     except Exception as e:
+        _logger.error("Failed to parse config file {}: {}", path, e)
         raise ConfigError(f"Failed to parse config file {path}: {e}") from e
 
 

@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from local_ai.config.schema import LocalAISettings
+from local_ai.logging import get_logger
 
 
 @dataclass
@@ -57,6 +58,8 @@ class ServerManager:
         self._settings = settings
         self._state_dir = state_dir or Path.home() / ".local" / "state" / "local-ai"
         self._state_dir.mkdir(parents=True, exist_ok=True)
+        self._logger = get_logger("ServerManager")
+        self._logger.debug("Initialized with state_dir={}", self._state_dir)
 
     @property
     def _pid_file(self) -> Path:
@@ -101,8 +104,16 @@ class ServerManager:
         Returns:
             StartResult with success status and PID or error.
         """
+        self._logger.info(
+            "Starting server: host={}, port={}, model={}",
+            self._settings.server.host,
+            self._settings.server.port,
+            self._settings.model.path,
+        )
+
         if self.is_running():
             pid = self._read_pid()
+            self._logger.warning("Server already running with PID {}", pid)
             return StartResult(
                 success=False,
                 pid=pid,
@@ -121,6 +132,8 @@ class ServerManager:
             self._settings.model.path,
         ]
 
+        self._logger.debug("Executing command: {}", " ".join(cmd))
+
         with open(self._log_file, "a") as log:
             process = subprocess.Popen(
                 cmd,
@@ -131,6 +144,7 @@ class ServerManager:
 
         # Check if process started successfully
         if process.poll() is not None:
+            self._logger.error("Server process exited immediately")
             return StartResult(
                 success=False,
                 error="Server process exited immediately",
@@ -138,6 +152,7 @@ class ServerManager:
 
         # Write PID file
         self._pid_file.write_text(str(process.pid))
+        self._logger.info("Server started successfully with PID {}", process.pid)
 
         return StartResult(success=True, pid=process.pid)
 
@@ -151,22 +166,31 @@ class ServerManager:
         Returns:
             StopResult with success status or error.
         """
+        self._logger.info("Stopping server (force={})", force)
+
         pid = self._read_pid()
         if pid is None:
+            self._logger.debug("No PID file found, server not running")
             return StopResult(success=True)
 
         if not self._process_exists(pid):
             # Process not running, clean up stale PID file
+            self._logger.debug("Stale PID file found, cleaning up")
             self._pid_file.unlink(missing_ok=True)
             return StopResult(success=True)
 
         sig = signal.SIGKILL if force else signal.SIGTERM
+        sig_name = "SIGKILL" if force else "SIGTERM"
+        self._logger.debug("Sending {} to PID {}", sig_name, pid)
+
         try:
             os.kill(pid, sig)
         except OSError as e:
+            self._logger.error("Failed to stop server: {}", e)
             return StopResult(success=False, error=str(e))
 
         self._pid_file.unlink(missing_ok=True)
+        self._logger.info("Server stopped successfully (PID {})", pid)
         return StopResult(success=True)
 
     def status(self) -> ServerStatus:
@@ -175,10 +199,12 @@ class ServerManager:
         Returns:
             ServerStatus with process and configuration details.
         """
+        self._logger.debug("Checking server status")
         pid = self._read_pid()
         running = pid is not None and self._process_exists(pid)
 
         if not running:
+            self._logger.debug("Server is not running")
             return ServerStatus(
                 running=False,
                 pid=None,
@@ -189,6 +215,12 @@ class ServerManager:
                 health=None,
             )
 
+        self._logger.debug(
+            "Server running: PID={}, host={}, port={}",
+            pid,
+            self._settings.server.host,
+            self._settings.server.port,
+        )
         return ServerStatus(
             running=True,
             pid=pid,
