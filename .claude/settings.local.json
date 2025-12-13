@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs ls:*)",
+      "Bash(python3:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:blaizzy.github.io)",
+      "Bash(ls:*)",
+      "Bash(source:*)",
+      "WebFetch(domain:pypi.org)",
+      "Bash(/Users/atomasini/Development/local-llms/.venv/bin/python:*)",
+      "mcp__zen__apilookup"
+    ]
+  }
+}

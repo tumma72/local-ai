@@ -1,0 +1,35 @@
+# local-ai configuration example
+# Copy to ~/.config/local-ai/config.toml or ./config.toml
+
+[server]
+# Host to bind the server
+host = "127.0.0.1"
+# Port to bind the server (1-65535)
+port = 8080
+# Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+log_level = "INFO"
+
+[model]
+# Required: Path to model or HuggingFace repo ID
+# Examples:
+#   - "mlx-community/Qwen3-30B-A3B-4bit"
+#   - "/path/to/local/model"
+path = "mlx-community/Qwen3-30B-A3B-4bit"
+
+# Optional: Path to LoRA adapter
+# adapter_path = "/path/to/adapter"
+
+# Trust remote code in tokenizer (use with caution)
+# trust_remote_code = false
+
+[generation]
+# Maximum tokens to generate (1-32768)
+max_tokens = 4096
+# Temperature for sampling (0.0-2.0, 0.0 = deterministic)
+temperature = 0.0
+# Top-p nucleus sampling (0.0-1.0)
+top_p = 1.0
+# Top-k sampling (0 = disabled)
+top_k = 0
+# Min-p sampling (0.0-1.0)
+min_p = 0.0
