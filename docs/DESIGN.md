@@ -164,8 +164,14 @@ MLX Omni Server exposes two API families:
 
 ```python
 class ServerManager:
-    def __init__(self, settings: LocalAISettings) -> None: ...
-    def start(self, foreground: bool = False) -> StartResult: ...
+    def __init__(
+        self,
+        settings: LocalAISettings | None = None,  # Required for start(), optional for stop()/status()
+        state_dir: Path | None = None,
+        host: str | None = None,  # For status checks, defaults to 127.0.0.1
+        port: int | None = None,  # For status checks, defaults to 8080
+    ) -> None: ...
+    def start(self, foreground: bool = False, startup_timeout: float = 30.0) -> StartResult: ...
     def stop(self, force: bool = False, timeout: float = 10.0) -> StopResult: ...
     def status(self) -> ServerStatus: ...
     def is_running(self) -> bool: ...
@@ -187,7 +193,7 @@ class ServerStatus:
     pid: int | None
     host: str | None
     port: int | None
-    model: str | None
+    models: str | None  # Available models (cached locally, loaded per request)
     uptime_seconds: float | None
     health: str | None  # "healthy" | "unhealthy" | "unknown"
 ```
