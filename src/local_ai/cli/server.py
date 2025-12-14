@@ -34,6 +34,9 @@ def start(
     port: Annotated[int | None, typer.Option("--port", "-p", help="Server port")] = None,
     host: Annotated[str | None, typer.Option("--host", "-h", help="Server host")] = None,
     config: Annotated[Path | None, typer.Option("--config", "-c", help="Config file path")] = None,
+    startup_timeout: Annotated[
+        float, typer.Option("--timeout", "-t", help="Startup timeout in seconds")
+    ] = 30.0,
     log_level: Annotated[str, typer.Option("--log-level", "-l", help="Log level")] = "INFO",
 ) -> None:
     """Start the local-ai server."""
@@ -45,7 +48,10 @@ def start(
 
     settings = load_config(config_path=config, model=model, port=port, host=host)
     manager = ServerManager(settings)
-    result = manager.start()
+
+    console.print(f"[cyan]Starting server with model: {settings.model.path}...[/cyan]")
+
+    result = manager.start(startup_timeout=startup_timeout)
 
     if result.success:
         port = settings.server.port
@@ -53,7 +59,18 @@ def start(
         console.print(f"[green]:heavy_check_mark: Server started on port {port}[/green]")
     else:
         _logger.error("Failed to start server: {}", result.error)
-        console.print(f"[red]:heavy_multiplication_x: Error: {result.error}[/red]")
+        # Show error in a panel for better readability
+        error_lines = (result.error or "Unknown error").split("\n")
+        if len(error_lines) > 1:
+            # Multi-line error with log output
+            panel = Panel(
+                result.error or "Unknown error",
+                title="[bold red]Server Start Failed[/bold red]",
+                border_style="red",
+            )
+            console.print(panel)
+        else:
+            console.print(f"[red]:heavy_multiplication_x: Error: {result.error}[/red]")
         raise typer.Exit(code=1)
 
 

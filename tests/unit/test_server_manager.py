@@ -14,14 +14,14 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+from local_ai.config.schema import LocalAISettings, ModelConfig, ServerConfig
 from local_ai.server.manager import (
     ServerManager,
     ServerStatus,
     StartResult,
     StopResult,
 )
-
-from local_ai.config.schema import LocalAISettings, ModelConfig, ServerConfig
 
 
 @pytest.fixture
@@ -52,9 +52,10 @@ class TestServerStart:
         mock_process.pid = 12345
         mock_process.poll.return_value = None  # Process still running
 
-        with patch("subprocess.Popen", return_value=mock_process) as mock_popen:
+        with patch("subprocess.Popen", return_value=mock_process) as mock_popen, \
+             patch("local_ai.server.manager.check_health", return_value="healthy"):
             manager = ServerManager(settings, state_dir=state_dir)
-            result = manager.start()
+            result = manager.start(startup_timeout=5.0)
 
         assert isinstance(result, StartResult)
         assert result.success is True
@@ -88,15 +89,16 @@ class TestServerStart:
         mock_process = MagicMock()
         mock_process.pid = 12345
         mock_process.poll.return_value = 1  # Process exited with error code
+        mock_process.returncode = 1  # Set explicit return code
 
         with patch("subprocess.Popen", return_value=mock_process):
             manager = ServerManager(settings, state_dir=state_dir)
-            result = manager.start()
+            result = manager.start(startup_timeout=5.0)
 
         assert isinstance(result, StartResult)
         assert result.success is False
         assert result.error is not None
-        assert "exited immediately" in result.error.lower()
+        assert "exited with code" in result.error.lower()
 
 
 class TestServerStop:
@@ -236,3 +238,105 @@ class TestServerStaleState:
         result = manager.is_running()
 
         assert result is False
+
+
+class TestServerStartupTimeout:
+    """Verify ServerManager handles startup timeout scenarios."""
+
+    def test_start_timeout_returns_failure_with_log_content(
+        self, settings: LocalAISettings, state_dir: Path
+    ) -> None:
+        """start() should return failure with log content when timeout exceeded."""
+        mock_process = MagicMock()
+        mock_process.pid = 12345
+        mock_process.poll.return_value = None  # Process still running
+        log_file = state_dir / "server.log"
+
+        def health_never_ready(host: str, port: int, timeout: float = 5.0) -> str:
+            # Simulate subprocess writing to log file
+            log_file.write_text("Loading model...\nInitializing...\n")
+            return "unknown"
+
+        with patch("subprocess.Popen", return_value=mock_process), \
+             patch("local_ai.server.manager.check_health", side_effect=health_never_ready), \
+             patch("os.kill"):
+            manager = ServerManager(settings, state_dir=state_dir)
+            result = manager.start(startup_timeout=0.1, health_interval=0.05)
+
+        assert isinstance(result, StartResult)
+        assert result.success is False
+        assert result.error is not None
+        assert "did not become healthy" in result.error.lower()
+        assert "Loading model" in result.error
+
+    def test_start_process_exit_includes_error_log(
+        self, settings: LocalAISettings, state_dir: Path
+    ) -> None:
+        """start() should include error log content when process exits with error."""
+        mock_process = MagicMock()
+        mock_process.pid = 12345
+        mock_process.returncode = 1
+        log_file = state_dir / "server.log"
+
+        def poll_side_effect() -> int | None:
+            # Simulate subprocess writing error to log before exiting
+            log_file.write_text("Starting server...\nError: Model not found\n")
+            return 1
+
+        mock_process.poll.side_effect = poll_side_effect
+
+        with patch("subprocess.Popen", return_value=mock_process):
+            manager = ServerManager(settings, state_dir=state_dir)
+            result = manager.start(startup_timeout=5.0, health_interval=0.01)
+
+        assert isinstance(result, StartResult)
+        assert result.success is False
+        assert result.error is not None
+        assert "exited with code" in result.error.lower()
+        assert "Error: Model not found" in result.error
+
+
+class TestServerLogReading:
+    """Verify ServerManager log file reading behavior."""
+
+    def test_get_last_log_lines_when_log_file_missing(
+        self, settings: LocalAISettings, state_dir: Path
+    ) -> None:
+        """_get_last_log_lines() should return empty string when log file doesn't exist."""
+        manager = ServerManager(settings, state_dir=state_dir)
+        # Ensure no log file exists
+        log_file = state_dir / "server.log"
+        if log_file.exists():
+            log_file.unlink()
+
+        # Access private method for testing edge case
+        result = manager._get_last_log_lines(10)
+        assert result == ""
+
+    def test_get_last_log_lines_returns_last_n_lines(
+        self, settings: LocalAISettings, state_dir: Path
+    ) -> None:
+        """_get_last_log_lines() should return last N lines from log file."""
+        manager = ServerManager(settings, state_dir=state_dir)
+        log_file = state_dir / "server.log"
+        log_file.write_text("line1\nline2\nline3\nline4\nline5\n")
+
+        result = manager._get_last_log_lines(3)
+        assert "line3" in result
+        assert "line4" in result
+        assert "line5" in result
+        assert "line1" not in result
+
+    def test_get_last_log_lines_handles_read_error(
+        self, settings: LocalAISettings, state_dir: Path
+    ) -> None:
+        """_get_last_log_lines() should return empty string when read fails."""
+        manager = ServerManager(settings, state_dir=state_dir)
+        log_file = state_dir / "server.log"
+        log_file.write_text("some content")
+
+        # Mock read_text to raise OSError
+        with patch.object(Path, "read_text", side_effect=OSError("Permission denied")):
+            result = manager._get_last_log_lines(10)
+
+        assert result == ""

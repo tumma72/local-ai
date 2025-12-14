@@ -97,7 +97,9 @@ port = 8080
 class TestNoConfigFile:
     """Verify load_config works without any config file when model is provided via CLI."""
 
-    def test_works_with_cli_model_only(self, temp_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_works_with_cli_model_only(
+        self, temp_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """load_config should succeed with only CLI model and no config file."""
         # Change to temp_dir to avoid finding any existing config.toml
         monkeypatch.chdir(temp_dir)

@@ -16,6 +16,8 @@ from local_ai.config.schema import (
     LocalAISettings,
     ModelConfig,
     ServerConfig,
+    _default_generation_config,
+    _default_server_config,
 )
 from local_ai.logging import get_logger
 
@@ -102,7 +104,7 @@ def load_config(
     if port_value is not None:
         server_dict["port"] = port_value
 
-    server_config = ServerConfig(**server_dict) if server_dict else ServerConfig()
+    server_config = ServerConfig(**server_dict) if server_dict else _default_server_config()
 
     # Build model config from TOML
     model_dict = toml_config.get("model", {})
@@ -112,7 +114,7 @@ def load_config(
     # Build generation config from TOML
     generation_dict = toml_config.get("generation", {})
     generation_config = (
-        GenerationConfig(**generation_dict) if generation_dict else GenerationConfig()
+        GenerationConfig(**generation_dict) if generation_dict else _default_generation_config()
     )
 
     settings = LocalAISettings(

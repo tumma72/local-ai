@@ -92,6 +92,32 @@ class TestServerStartCommand:
         # Should indicate the server is already running
         assert "already running" in result.stdout.lower() or "error" in result.stdout.lower()
 
+    def test_start_failure_with_multiline_error_shows_panel(
+        self, cli_runner: CliRunner
+    ) -> None:
+        """start command should show error panel when error has multiple lines."""
+        multiline_error = (
+            "Server did not become healthy within 30.0s\n\n"
+            "Server log:\n"
+            "Loading model...\n"
+            "Error: Repository Not Found"
+        )
+        mock_result = StartResult(success=False, pid=None, error=multiline_error)
+        mock_manager = MagicMock()
+        mock_manager.start.return_value = mock_result
+
+        with patch(
+            "local_ai.cli.server.ServerManager", return_value=mock_manager
+        ), patch("local_ai.cli.server.load_config"):
+            result = cli_runner.invoke(
+                app, ["server", "start", "--model", "test-model"]
+            )
+
+        assert result.exit_code == 1
+        # Should show the error content (panel output includes the text)
+        assert "Server did not become healthy" in result.stdout
+        assert "Repository Not Found" in result.stdout
+
 
 class TestServerStopCommand:
     """Verify `local-ai server stop` command behavior."""
@@ -126,7 +152,9 @@ class TestServerStopCommand:
             result = cli_runner.invoke(app, ["server", "stop"])
 
         assert result.exit_code == 1
-        assert "error" in result.stdout.lower() or "operation not permitted" in result.stdout.lower()
+        error_shown = "error" in result.stdout.lower()
+        permission_error = "operation not permitted" in result.stdout.lower()
+        assert error_shown or permission_error
 
 
 class TestServerStatusCommand:
