@@ -13,7 +13,12 @@ from pathlib import Path
 
 from local_ai.config.schema import LocalAISettings
 from local_ai.logging import get_logger
-from local_ai.server.health import check_health
+from local_ai.server.health import (
+    DEFAULT_HOST,
+    DEFAULT_PORT,
+    check_health,
+    get_models,
+)
 
 
 @dataclass
@@ -41,7 +46,7 @@ class ServerStatus:
     pid: int | None
     host: str | None
     port: int | None
-    model: str | None
+    models: str | None  # Available models from /v1/models (not loaded, just cached locally)
     uptime_seconds: float | None
     health: str | None  # "healthy" | "unhealthy" | "unknown"
 
@@ -50,15 +55,27 @@ class ServerManager:
     """Manages the MLX Omni Server process lifecycle."""
 
     def __init__(
-        self, settings: LocalAISettings, state_dir: Path | None = None
+        self,
+        settings: LocalAISettings | None = None,
+        state_dir: Path | None = None,
+        host: str | None = None,
+        port: int | None = None,
     ) -> None:
         """Initialize ServerManager with settings and state directory.
 
         Args:
-            settings: LocalAI configuration settings.
+            settings: LocalAI configuration settings. Required for start().
             state_dir: Directory for PID and log files. Defaults to ~/.local/state/local-ai/
+            host: Server host for status checks. Defaults to 127.0.0.1.
+            port: Server port for status checks. Defaults to 8080.
+
+        Note:
+            For stop() and status(), settings is not required - only host/port
+            are needed for health checks.
         """
         self._settings = settings
+        self._host = host or (settings.server.host if settings else DEFAULT_HOST)
+        self._port = port or (settings.server.port if settings else DEFAULT_PORT)
         self._state_dir = state_dir or Path.home() / ".local" / "state" / "local-ai"
         self._state_dir.mkdir(parents=True, exist_ok=True)
         self._logger = get_logger("ServerManager")
@@ -123,7 +140,13 @@ class ServerManager:
 
         Returns:
             StartResult with success status and PID or error.
+
+        Raises:
+            ValueError: If settings were not provided to constructor.
         """
+        if self._settings is None:
+            raise ValueError("Settings required for start(). Initialize with settings=...")
+
         self._logger.info(
             "Starting server: host={}, port={}, model={}",
             self._settings.server.host,
@@ -256,8 +279,10 @@ class ServerManager:
     def status(self) -> ServerStatus:
         """Get current server status.
 
+        Queries the server for actual health status and loaded models.
+
         Returns:
-            ServerStatus with process and configuration details.
+            ServerStatus with process and server details.
         """
         self._logger.debug("Checking server status")
         pid = self._read_pid()
@@ -270,23 +295,26 @@ class ServerManager:
                 pid=None,
                 host=None,
                 port=None,
-                model=None,
+                models=None,
                 uptime_seconds=None,
                 health=None,
             )
 
+        # Query server for available models (cached locally, not necessarily loaded in memory)
+        health = check_health(self._host, self._port, timeout=2.0)
+        available_models = get_models(self._host, self._port, timeout=2.0)
+        models_str = ", ".join(available_models) if available_models else "none available"
+
         self._logger.debug(
-            "Server running: PID={}, host={}, port={}",
-            pid,
-            self._settings.server.host,
-            self._settings.server.port,
+            "Server running: PID={}, host={}, port={}, health={}, available_models={}",
+            pid, self._host, self._port, health, available_models,
         )
         return ServerStatus(
             running=True,
             pid=pid,
-            host=self._settings.server.host,
-            port=self._settings.server.port,
-            model=self._settings.model.path,
+            host=self._host,
+            port=self._port,
+            models=models_str,
             uptime_seconds=None,  # Would require tracking start time
-            health="unknown",  # Would require HTTP health check
+            health=health,
         )

@@ -171,7 +171,9 @@ class TestServerStatus:
         pid_file = state_dir / "server.pid"
         pid_file.write_text("12345")
 
-        with patch("os.kill") as mock_kill:
+        with patch("os.kill") as mock_kill, \
+             patch("local_ai.server.manager.check_health", return_value="healthy"), \
+             patch("local_ai.server.manager.get_models", return_value=["mlx-community/test-model"]):
             mock_kill.return_value = None  # Process exists
             manager = ServerManager(settings, state_dir=state_dir)
             status = manager.status()
@@ -181,9 +183,8 @@ class TestServerStatus:
         assert status.pid == 12345
         assert status.host == "127.0.0.1"
         assert status.port == 8080
-        assert status.model == "mlx-community/test-model"
-        # Health may be "unknown" without actual HTTP check
-        assert status.health in ("healthy", "unhealthy", "unknown")
+        assert status.models == "mlx-community/test-model"
+        assert status.health == "healthy"
 
     def test_status_when_not_running_returns_not_running_state(
         self, settings: LocalAISettings, state_dir: Path
@@ -198,7 +199,7 @@ class TestServerStatus:
         assert status.pid is None
         assert status.host is None
         assert status.port is None
-        assert status.model is None
+        assert status.models is None
         assert status.health is None
 
 

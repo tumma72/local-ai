@@ -8,6 +8,37 @@ from local_ai.logging import get_logger
 
 _logger = get_logger("Health")
 
+# Default server settings for status/stop operations
+DEFAULT_HOST = "127.0.0.1"
+DEFAULT_PORT = 8080
+
+
+def get_models(host: str, port: int, timeout: float = 5.0) -> list[str]:
+    """Query server for loaded models.
+
+    Args:
+        host: Server host
+        port: Server port
+        timeout: Request timeout in seconds
+
+    Returns:
+        List of model IDs, or empty list if query fails
+    """
+    url = f"http://{host}:{port}/v1/models"
+    _logger.debug("Querying models at {}", url)
+    try:
+        response = httpx.get(url, timeout=timeout)
+        if response.status_code == 200:
+            data = response.json()
+            models = [m.get("id", "unknown") for m in data.get("data", [])]
+            _logger.debug("Found {} models: {}", len(models), models)
+            return models
+        _logger.warning("Failed to query models: status={}", response.status_code)
+        return []
+    except httpx.RequestError as e:
+        _logger.debug("Failed to query models: {} ({})", e, type(e).__name__)
+        return []
+
 
 def check_health(host: str, port: int, timeout: float = 5.0) -> str:
     """Check server health via /v1/models endpoint.

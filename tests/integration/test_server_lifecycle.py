@@ -141,8 +141,10 @@ class TestServerStartStopLifecycle:
              patch("local_ai.server.manager.check_health", return_value="healthy"):
             manager.start(startup_timeout=5.0)
 
-        # Check status (mock os.kill to say process exists)
-        with patch("os.kill") as mock_kill:
+        # Check status (mock os.kill, health check and models query)
+        with patch("os.kill") as mock_kill, \
+             patch("local_ai.server.manager.check_health", return_value="healthy"), \
+             patch("local_ai.server.manager.get_models", return_value=["status-test-model"]):
             mock_kill.return_value = None  # Process exists
             status = manager.status()
 
@@ -150,7 +152,8 @@ class TestServerStartStopLifecycle:
         assert status.pid == 77777
         assert status.host == "127.0.0.1"
         assert status.port == 8080
-        assert status.model == "status-test-model"
+        assert status.models == "status-test-model"
+        assert status.health == "healthy"
 
 
 class TestServerAlreadyRunningError:
@@ -213,5 +216,5 @@ class TestStatusWhenNotRunning:
         assert status.pid is None
         assert status.host is None
         assert status.port is None
-        assert status.model is None
+        assert status.models is None
         assert status.health is None

@@ -169,7 +169,7 @@ class TestServerStatusCommand:
             pid=12345,
             host="127.0.0.1",
             port=8080,
-            model="test-model",
+            models="test-model",
             uptime_seconds=120.0,
             health="healthy",
         )
@@ -195,7 +195,7 @@ class TestServerStatusCommand:
             pid=None,
             host=None,
             port=None,
-            model=None,
+            models=None,
             uptime_seconds=None,
             health=None,
         )
@@ -219,7 +219,7 @@ class TestServerStatusCommand:
             pid=54321,
             host="0.0.0.0",
             port=9090,
-            model="mlx-community/Llama-3.2-1B-Instruct-4bit",
+            models="mlx-community/Llama-3.2-1B-Instruct-4bit",
             uptime_seconds=300.0,
             health="healthy",
         )

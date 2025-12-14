@@ -82,8 +82,7 @@ def stop(
     configure_logging(log_level=log_level, console=False)
     _logger.info("CLI stop command")
 
-    settings = load_config(model="placeholder")
-    manager = ServerManager(settings)
+    manager = ServerManager()  # No settings needed for stop
     result = manager.stop()
 
     if result.success:
@@ -97,14 +96,15 @@ def stop(
 
 @server_app.command()
 def status(
+    port: Annotated[int | None, typer.Option("--port", "-p", help="Server port")] = None,
+    host: Annotated[str | None, typer.Option("--host", "-h", help="Server host")] = None,
     log_level: Annotated[str, typer.Option("--log-level", "-l", help="Log level")] = "INFO",
 ) -> None:
     """Show local-ai server status."""
     configure_logging(log_level=log_level, console=False)
     _logger.info("CLI status command")
 
-    settings = load_config(model="placeholder")
-    manager = ServerManager(settings)
+    manager = ServerManager(host=host, port=port)  # No settings needed for status
     server_status = manager.status()
 
     if server_status.running:
@@ -112,14 +112,23 @@ def status(
             "Server status: running=True, pid={}, host={}, port={}",
             server_status.pid, server_status.host, server_status.port,
         )
+        # Color health status appropriately
+        health_display = server_status.health or "unknown"
+        if health_display == "healthy":
+            health_display = f"[green]{health_display}[/green]"
+        elif health_display == "unhealthy":
+            health_display = f"[red]{health_display}[/red]"
+        else:
+            health_display = f"[yellow]{health_display}[/yellow]"
+
         table = Table(show_header=False, box=None)
         table.add_column("Field", style="cyan")
         table.add_column("Value")
         table.add_row("Status", f"[green]running[/green] with PID {server_status.pid}")
         table.add_row("Host", str(server_status.host))
         table.add_row("Port", str(server_status.port))
-        table.add_row("Model", str(server_status.model))
-        table.add_row("Health", str(server_status.health))
+        table.add_row("Available Models", str(server_status.models))
+        table.add_row("Health", health_display)
         panel = Panel(table, title="[bold cyan]Server Status[/bold cyan]", border_style="cyan")
         console.print(panel)
     else:
