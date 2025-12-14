@@ -26,3 +26,9 @@ config.toml
 
 # State files
 .local/
+
+# External library development (nested repos)
+lib/
+
+# Claude Code local settings
+.claude/settings.local.json
