@@ -15,7 +15,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from local_ai.benchmark.goose_runner import run_goose_command
+from local_ai.benchmark.goose_runner import get_goose_output_dir, run_goose_command
 from local_ai.benchmark.reporter import BenchmarkReporter
 from local_ai.benchmark.runner import BenchmarkRunner
 from local_ai.benchmark.tasks import get_builtin_tasks, get_task_by_id
@@ -162,6 +162,10 @@ def goose(
     task: Annotated[str, typer.Option("--task", "-t", help="Task ID to run")],
     port: Annotated[int, typer.Option("--port", "-p", help="Server port")] = 8080,
     host: Annotated[str, typer.Option("--host", help="Server host")] = "127.0.0.1",
+    output_dir: Annotated[
+        Path | None,
+        typer.Option("--output-dir", "-o", help="Base directory for generated code"),
+    ] = None,
     timeout: Annotated[
         float, typer.Option("--timeout", help="Request timeout in seconds")
     ] = 300.0,
@@ -173,6 +177,8 @@ def goose(
 
     Compares raw model output (from 'benchmark run') with Goose-enhanced
     agentic output using the same model.
+
+    Generated code is saved to: benchmark_code/goose_<model>/<task>/
     """
     configure_logging(log_level=log_level, console=False)
     _logger.info("CLI benchmark goose: model={}, task={}", model, task)
@@ -184,10 +190,14 @@ def goose(
         console.print("Use 'local-ai benchmark tasks' to see available tasks.")
         raise typer.Exit(code=1)
 
+    # Get structured output directory
+    working_dir = get_goose_output_dir(model, task, base_dir=output_dir)
+
     console.print(Panel(
         f"[cyan]Model:[/cyan] {model}\n"
         f"[cyan]Task:[/cyan] {benchmark_task.name}\n"
         f"[cyan]Server:[/cyan] {host}:{port}\n"
+        f"[cyan]Output:[/cyan] {working_dir}\n"
         f"[cyan]Mode:[/cyan] Goose Agentic",
         title="[bold]Goose Benchmark[/bold]",
     ))
@@ -202,6 +212,7 @@ def goose(
             host=host,
             port=port,
             timeout=timeout,
+            working_directory=working_dir,
         )
 
     if not result.success:
@@ -216,11 +227,14 @@ def goose(
 
     results_table.add_row("Elapsed Time", f"{result.elapsed_ms:.0f} ms")
     results_table.add_row("Output Length", f"{len(result.output)} chars")
+    results_table.add_row("Working Directory", str(result.working_directory))
     results_table.add_row("Status", "Success" if result.success else "Failed")
 
     console.print(results_table)
 
     # Show output preview
     console.print()
-    output_preview = result.output[:500] + "..." if len(result.output) > 500 else result.output
+    output_preview = (
+        result.output[:500] + "..." if len(result.output) > 500 else result.output
+    )
     console.print(Panel(output_preview, title="[bold]Output Preview[/bold]"))
