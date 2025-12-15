@@ -1,0 +1,50 @@
+[task]
+id = "todo-api-tdd"
+name = "REST API for Todo List (TDD)"
+difficulty = "complex"
+expected_output_tokens = 2000
+language = "python"
+tags = ["api", "rest", "fastapi", "crud", "tdd", "testing", "agentic"]
+
+[prompts]
+system = """You are a Python expert who practices Test-Driven Development (TDD).
+You write tests FIRST, then implement code to make them pass.
+Use pytest for testing and FastAPI TestClient for API tests.
+Always run tests to verify they work before considering the task complete."""
+
+user = """Create a FastAPI REST API for a todo list application using TDD.
+
+IMPORTANT: Follow TDD strictly:
+1. First, create test_main.py with comprehensive tests for all endpoints
+2. Run the tests - they should FAIL (red phase)
+3. Then create main.py with the implementation
+4. Run the tests again - they should PASS (green phase)
+
+Requirements for the API:
+- In-memory storage using a list (no database)
+- Pydantic models for Todo items with: id, title, description, completed, created_at
+- CRUD endpoints:
+  - GET /todos - List all todos
+  - POST /todos - Create a new todo (returns 201)
+  - GET /todos/{id} - Get a specific todo (returns 404 if not found)
+  - PUT /todos/{id} - Update a todo (returns 404 if not found)
+  - DELETE /todos/{id} - Delete a todo (returns 204, or 404 if not found)
+
+Requirements for tests (test_main.py):
+- Use pytest and FastAPI TestClient
+- Test each endpoint for success cases
+- Test 404 error cases for GET, PUT, DELETE with invalid ID
+- Test input validation (missing required fields)
+- At least 10 test functions
+
+File structure:
+- main.py (the API implementation)
+- test_main.py (the test suite)
+
+After creating both files, run: pytest test_main.py -v
+All tests must pass before the task is complete."""
+
+[validation]
+type = "tests"
+test_command = "pytest test_main.py -v"
+min_tests = 10

@@ -1,0 +1,65 @@
+version: "1.0.0"
+title: "TDD Todo API"
+description: |
+  Create a FastAPI REST API for a todo list application using Test-Driven Development.
+  This recipe follows TDD strictly: write tests first, run them to fail, implement code, run tests to pass.
+
+instructions: |
+  You are a Python expert who practices Test-Driven Development (TDD).
+  You write tests FIRST, then implement code to make them pass.
+  Use pytest for testing and FastAPI TestClient for API tests.
+  Always run tests to verify they work before considering the task complete.
+
+  CRITICAL: You MUST follow the TDD workflow strictly:
+  1. Create test_main.py with ALL tests first
+  2. Run pytest - tests should FAIL (red phase)
+  3. Create main.py with the implementation
+  4. Run pytest again - tests should PASS (green phase)
+
+  Do NOT skip any phase. Run tests after creating them and after implementing.
+
+prompt: |
+  Create a FastAPI REST API for a todo list application using TDD in the directory: {{ work_dir }}
+
+  Requirements for the API:
+  - In-memory storage using a list (no database)
+  - Pydantic models for Todo items with: id, title, description, completed, created_at
+  - CRUD endpoints:
+    - GET /todos - List all todos
+    - POST /todos - Create a new todo (returns 201)
+    - GET /todos/{id} - Get a specific todo (returns 404 if not found)
+    - PUT /todos/{id} - Update a todo (returns 404 if not found)
+    - DELETE /todos/{id} - Delete a todo (returns 204, or 404 if not found)
+
+  Requirements for tests (test_main.py):
+  - Use pytest and FastAPI TestClient
+  - Test each endpoint for success cases
+  - Test 404 error cases for GET, PUT, DELETE with invalid ID
+  - Test input validation (missing required fields)
+  - At least 10 test functions
+
+  File structure:
+  - {{ work_dir }}/main.py (the API implementation)
+  - {{ work_dir }}/test_main.py (the test suite)
+
+  WORKFLOW:
+  1. First create {{ work_dir }}/test_main.py with comprehensive tests
+  2. Run: cd {{ work_dir }} && pytest test_main.py -v (expect failures)
+  3. Then create {{ work_dir }}/main.py with the implementation
+  4. Run: cd {{ work_dir }} && pytest test_main.py -v (all should pass)
+
+  The task is ONLY complete when all tests pass.
+
+parameters:
+  - key: work_dir
+    description: "Directory to create the files in"
+    input_type: string
+    requirement: required
+
+extensions:
+  - type: builtin
+    name: developer
+
+activities:
+  - thinking
+  - development
