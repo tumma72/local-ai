@@ -4,17 +4,29 @@ Provides subcommands for model discovery and management:
 - list: List locally available models
 - search: Search HuggingFace for models
 - info: Get detailed model information
+- download: Download models from HuggingFace
 """
 
+from pathlib import Path
 from typing import Annotated
 
 import httpx
 import typer
+from huggingface_hub import snapshot_download
 
+from local_ai.hardware import (
+    detect_hardware,
+    estimate_model_params_from_name,
+    get_max_model_size_gb,
+    get_recommended_quantization,
+)
 from local_ai.logging import configure_logging, get_logger
 from local_ai.models.huggingface import (
     SortOption,
     create_local_model_result,
+    get_converted_model_info,
+    get_converted_models,
+    get_local_model_size,
     search_models_enhanced,
 )
 from local_ai.output import (
@@ -37,20 +49,44 @@ models_app = typer.Typer(
 def list_models(
     host: Annotated[str, typer.Option("--host", help="Server host")] = "127.0.0.1",
     port: Annotated[int, typer.Option("--port", "-p", help="Server port")] = 10240,
+    all_models: Annotated[
+        bool, typer.Option("--all", "-a", help="Show all local models (cached + converted)")
+    ] = False,
     log_level: Annotated[str, typer.Option("--log-level", "-l", help="Log level")] = "INFO",
 ) -> None:
-    """List locally available models from the running server.
+    """List locally available models.
 
-    Shows models currently loaded or available on the local MLX server.
-    The server must be running for this command to work.
+    By default, shows models from the running server.
+    Use --all to show all locally available models (cached + converted).
 
     Examples:
         local-ai models list
+        local-ai models list --all
         local-ai models list --port 8080
     """
     configure_logging(log_level=log_level, console=False)
-    _logger.info("CLI models list: host={}, port={}", host, port)
+    _logger.info("CLI models list: host={}, port={}, all={}", host, port, all_models)
 
+    models = []
+
+    # Get converted models (always include these)
+    converted = get_converted_models()
+    if converted:
+        models.extend(converted)
+
+    if all_models:
+        # Show all local models without requiring server
+        if models:
+            table = create_local_models_table(models, title="Local Models")
+            console.print(table)
+            console.print(f"\n[dim]Showing {len(models)} locally converted models[/dim]")
+        else:
+            console.print("[yellow]⚠ No local models found[/yellow]")
+            console.print("\nDownload models with:")
+            console.print("  local-ai models download <model-id>")
+        return
+
+    # Get models from server
     url = f"http://{host}:{port}/v1/models"
 
     try:
@@ -62,6 +98,7 @@ def list_models(
         console.print(f"[red]✗ Cannot connect to server at {host}:{port}[/red]")
         console.print("\nMake sure the server is running:")
         console.print("  local-ai server start")
+        console.print("\nOr use --all to show locally available models.")
         raise typer.Exit(code=1) from None
     except httpx.HTTPStatusError as e:
         console.print(f"[red]✗ Server error: {e.response.status_code}[/red]")
@@ -73,16 +110,25 @@ def list_models(
 
     raw_models = data.get("data", [])
 
-    if not raw_models:
-        console.print("[yellow]⚠ No models available on the server[/yellow]")
+    # Convert server models to ModelSearchResult with local cache info
+    server_models = [create_local_model_result(m.get("id", "")) for m in raw_models]
+
+    if not server_models and not converted:
+        console.print("[yellow]⚠ No models available[/yellow]")
         return
 
-    # Convert to ModelSearchResult with local cache info
-    models = [create_local_model_result(m.get("id", "")) for m in raw_models]
+    # Show server models
+    if server_models:
+        table = create_local_models_table(server_models, title="Server Models")
+        console.print(table)
+        console.print(f"\n[dim]Server: {host}:{port}[/dim]")
 
-    table = create_local_models_table(models)
-    console.print(table)
-    console.print(f"\n[dim]Server: {host}:{port}[/dim]")
+    # Show converted models if any
+    if converted:
+        console.print()
+        table2 = create_local_models_table(converted, title="Converted Models")
+        console.print(table2)
+        console.print(f"\n[dim]Location: ~/.local/share/local-ai/models/[/dim]")
 
 
 @models_app.command()
@@ -167,33 +213,196 @@ def search(
 
 @models_app.command()
 def info(
-    model_id: Annotated[str, typer.Argument(help="Full model ID (e.g., mlx-community/Qwen3-8B-4bit)")],
+    model_id: Annotated[str, typer.Argument(help="Full model ID (e.g., mlx-community/Qwen3-8B-4bit or local/model-name)")],
     log_level: Annotated[
         str, typer.Option("--log-level", "-l", help="Log level")
     ] = "INFO",
 ) -> None:
-    """Get detailed information about a specific model."""
+    """Get detailed information about a specific model.
+
+    Works with both HuggingFace models and locally converted models.
+
+    Examples:
+        local-ai models info mlx-community/Qwen3-8B-4bit
+        local-ai models info local/mistralai_Devstral-Small-4bit-mlx
+    """
     from local_ai.models.huggingface import get_model_info
 
     configure_logging(log_level=log_level, console=False)
     _logger.info("CLI models info: model_id={}", model_id)
 
-    with console.status(f"[bold green]Fetching info for '{model_id}'...[/bold green]"):
-        model = get_model_info(model_id)
+    # Check if it's a local converted model
+    if model_id.startswith("local/"):
+        model = get_converted_model_info(model_id)
+        if model is None:
+            console.print(f"[red]✗ Local model not found: {model_id}[/red]")
+            console.print("\nList available models with:")
+            console.print("  local-ai models list --all")
+            raise typer.Exit(code=1)
+    else:
+        with console.status(f"[bold green]Fetching info for '{model_id}'...[/bold green]"):
+            model = get_model_info(model_id)
 
-    if model is None:
-        console.print(f"[red]✗ Model not found: {model_id}[/red]")
-        raise typer.Exit(code=1)
+        if model is None:
+            console.print(f"[red]✗ Model not found: {model_id}[/red]")
+            raise typer.Exit(code=1)
 
     # Display model info
     console.print(f"\n[bold cyan]{model.id}[/bold cyan]")
     console.print(f"  Author: {model.author}")
     console.print(f"  Quantization: {model.quantization.value}")
     console.print(f"  Size: {model.size_gb}")
-    console.print(f"  Downloads: {format_downloads(model.downloads)}")
-    console.print(f"  Likes: {model.likes}")
-    console.print(f"  Last Modified: {model.last_modified}")
-    console.print(f"  Source: {model.source_label}")
 
-    if model.tags:
-        console.print(f"  Tags: {', '.join(model.tags[:10])}")
+    # Only show HuggingFace-specific info for non-local models
+    if not model_id.startswith("local/"):
+        console.print(f"  Downloads: {format_downloads(model.downloads)}")
+        console.print(f"  Likes: {model.likes}")
+        console.print(f"  Last Modified: {model.last_modified}")
+        console.print(f"  Source: {model.source_label}")
+
+        if model.tags:
+            console.print(f"  Tags: {', '.join(model.tags[:10])}")
+    else:
+        console.print(f"  Location: ~/.local/share/local-ai/models/{model_id[6:]}")
+
+
+@models_app.command()
+def download(
+    model_id: Annotated[str, typer.Argument(help="Full model ID (e.g., mlx-community/Qwen3-8B-4bit)")],
+    convert: Annotated[
+        bool, typer.Option("--convert", "-c", help="Convert to MLX format (for non-MLX models)")
+    ] = False,
+    quantize: Annotated[
+        str | None, typer.Option("--quantize", "-q", help="Quantization level: 4bit, 6bit, 8bit, or 'auto'")
+    ] = None,
+    output_dir: Annotated[
+        str | None, typer.Option("--output", "-o", help="Output directory for converted models")
+    ] = None,
+    force: Annotated[
+        bool, typer.Option("--force", "-f", help="Force re-download even if cached")
+    ] = False,
+    log_level: Annotated[
+        str, typer.Option("--log-level", "-l", help="Log level")
+    ] = "INFO",
+) -> None:
+    """Download a model from HuggingFace.
+
+    For MLX-optimized models (from mlx-community), simply downloads to cache.
+    For other models, use --convert to convert to MLX format.
+
+    Examples:
+        local-ai models download mlx-community/Qwen3-8B-4bit
+        local-ai models download mistralai/Devstral-Small-2505 --convert --quantize auto
+        local-ai models download Qwen/Qwen3-30B --convert --quantize 4bit
+    """
+    configure_logging(log_level=log_level, console=False)
+    _logger.info("CLI models download: model_id={}, convert={}, quantize={}", model_id, convert, quantize)
+
+    # Check if already downloaded
+    existing_size = get_local_model_size(model_id)
+    if existing_size and not force:
+        size_gb = existing_size / (1024**3)
+        console.print(f"[green]✓[/green] Model already downloaded: {model_id}")
+        console.print(f"  Size: {size_gb:.1f} GB")
+        console.print(f"\n[dim]Use --force to re-download[/dim]")
+        return
+
+    # If converting, determine quantization
+    if convert:
+        _download_and_convert(model_id, quantize, output_dir)
+    else:
+        _download_mlx_model(model_id, force)
+
+
+def _download_mlx_model(model_id: str, force: bool) -> None:
+    """Download an MLX-optimized model."""
+    console.print(f"[bold]Downloading {model_id}...[/bold]\n")
+
+    try:
+        cache_path = snapshot_download(
+            repo_id=model_id,
+            force_download=force,
+        )
+        console.print(f"\n[green]✓[/green] Downloaded to: {cache_path}")
+
+        # Show size
+        size = get_local_model_size(model_id)
+        if size:
+            size_gb = size / (1024**3)
+            console.print(f"  Size: {size_gb:.1f} GB")
+
+    except Exception as e:
+        console.print(f"[red]✗ Download failed: {e}[/red]")
+        _logger.error("Download failed: {}", e)
+        raise typer.Exit(code=1) from None
+
+
+def _download_and_convert(
+    model_id: str,
+    quantize: str | None,
+    output_dir: str | None,
+) -> None:
+    """Download and convert a model to MLX format."""
+    from mlx_lm import convert as mlx_convert
+
+    # Determine quantization
+    q_bits: int | None = None
+    if quantize == "auto":
+        # Auto-detect based on hardware
+        try:
+            hw = detect_hardware()
+            params = estimate_model_params_from_name(model_id)
+            if params:
+                recommended = get_recommended_quantization(params, hw)
+                if recommended == "too_large":
+                    max_size = get_max_model_size_gb(hw)
+                    console.print(f"[red]✗ Model too large for available memory (~{max_size:.0f} GB max)[/red]")
+                    console.print("\nTry a smaller model or lower quantization.")
+                    raise typer.Exit(code=1)
+                q_bits = int(recommended.replace("bit", ""))
+                console.print(f"[cyan]Auto-detected:[/cyan] {params:.0f}B params → {recommended} recommended")
+            else:
+                console.print("[yellow]⚠ Could not detect model size, using 4bit default[/yellow]")
+                q_bits = 4
+        except RuntimeError:
+            console.print("[yellow]⚠ Hardware detection failed, using 4bit default[/yellow]")
+            q_bits = 4
+    elif quantize:
+        q_bits = int(quantize.replace("bit", ""))
+
+    # Determine output directory
+    if output_dir:
+        mlx_path = Path(output_dir)
+    else:
+        # Default: ~/.local/share/local-ai/models/{model_name}
+        model_name = model_id.replace("/", "_")
+        if q_bits:
+            model_name = f"{model_name}-{q_bits}bit-mlx"
+        else:
+            model_name = f"{model_name}-mlx"
+        mlx_path = Path.home() / ".local" / "share" / "local-ai" / "models" / model_name
+
+    console.print(f"[bold]Converting {model_id} to MLX format...[/bold]")
+    if q_bits:
+        console.print(f"  Quantization: {q_bits}bit")
+    console.print(f"  Output: {mlx_path}\n")
+
+    try:
+        mlx_convert(
+            hf_path=model_id,
+            mlx_path=str(mlx_path),
+            quantize=q_bits is not None,
+            q_bits=q_bits or 4,
+        )
+        console.print(f"\n[green]✓[/green] Converted to: {mlx_path}")
+
+        # Show size
+        if mlx_path.exists():
+            total_size = sum(f.stat().st_size for f in mlx_path.rglob("*") if f.is_file())
+            size_gb = total_size / (1024**3)
+            console.print(f"  Size: {size_gb:.1f} GB")
+
+    except Exception as e:
+        console.print(f"[red]✗ Conversion failed: {e}[/red]")
+        _logger.error("Conversion failed: {}", e)
+        raise typer.Exit(code=1) from None

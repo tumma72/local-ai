@@ -313,3 +313,74 @@ def create_local_model_result(model_id: str) -> ModelSearchResult:
         is_mlx_community=(author == MLX_COMMUNITY_ORG),
         size_bytes=size_bytes,
     )
+
+
+# Default location for converted models
+CONVERTED_MODELS_DIR = Path.home() / ".local" / "share" / "local-ai" / "models"
+
+
+def get_converted_models() -> list[ModelSearchResult]:
+    """Get list of locally converted models.
+
+    Scans ~/.local/share/local-ai/models/ for converted MLX models.
+
+    Returns:
+        List of ModelSearchResult for each converted model.
+    """
+    if not CONVERTED_MODELS_DIR.exists():
+        return []
+
+    results: list[ModelSearchResult] = []
+
+    for model_dir in CONVERTED_MODELS_DIR.iterdir():
+        if not model_dir.is_dir():
+            continue
+
+        # Calculate size
+        try:
+            total_size = sum(f.stat().st_size for f in model_dir.rglob("*") if f.is_file())
+        except Exception:
+            total_size = 0
+
+        # Model ID is the directory name (e.g., "mistralai_Devstral-Small-8bit-mlx")
+        model_id = f"local/{model_dir.name}"
+
+        results.append(ModelSearchResult(
+            id=model_id,
+            author="local",
+            is_mlx_community=False,
+            size_bytes=total_size if total_size > 0 else None,
+        ))
+
+    return results
+
+
+def get_converted_model_info(model_name: str) -> ModelSearchResult | None:
+    """Get info for a locally converted model.
+
+    Args:
+        model_name: Model directory name or full ID (local/name).
+
+    Returns:
+        ModelSearchResult or None if not found.
+    """
+    # Strip "local/" prefix if present
+    if model_name.startswith("local/"):
+        model_name = model_name[6:]
+
+    model_dir = CONVERTED_MODELS_DIR / model_name
+
+    if not model_dir.exists():
+        return None
+
+    try:
+        total_size = sum(f.stat().st_size for f in model_dir.rglob("*") if f.is_file())
+    except Exception:
+        total_size = 0
+
+    return ModelSearchResult(
+        id=f"local/{model_name}",
+        author="local",
+        is_mlx_community=False,
+        size_bytes=total_size if total_size > 0 else None,
+    )
