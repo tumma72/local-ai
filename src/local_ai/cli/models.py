@@ -10,13 +10,16 @@ from typing import Annotated
 
 import httpx
 import typer
-from rich.console import Console
-from rich.table import Table
 
 from local_ai.logging import configure_logging, get_logger
 from local_ai.models.huggingface import SortOption, search_models_enhanced
+from local_ai.output import (
+    console,
+    create_local_models_table,
+    create_search_results_table,
+    format_downloads,
+)
 
-console = Console()
 _logger = get_logger("CLI.models")
 
 models_app = typer.Typer(
@@ -24,15 +27,6 @@ models_app = typer.Typer(
     help="Search and manage local AI models",
     no_args_is_help=True,
 )
-
-
-def _format_downloads(count: int) -> str:
-    """Format download count for display."""
-    if count >= 1_000_000:
-        return f"{count / 1_000_000:.1f}M"
-    if count >= 1_000:
-        return f"{count / 1_000:.1f}K"
-    return str(count)
 
 
 @models_app.command("list")
@@ -61,33 +55,25 @@ def list_models(
         data = response.json()
 
     except httpx.ConnectError:
-        console.print(f"[red]Cannot connect to server at {host}:{port}[/red]")
+        console.print(f"[red]✗ Cannot connect to server at {host}:{port}[/red]")
         console.print("\nMake sure the server is running:")
         console.print("  local-ai server start")
         raise typer.Exit(code=1) from None
     except httpx.HTTPStatusError as e:
-        console.print(f"[red]Server error: {e.response.status_code}[/red]")
+        console.print(f"[red]✗ Server error: {e.response.status_code}[/red]")
         raise typer.Exit(code=1) from None
     except Exception as e:
-        console.print(f"[red]Failed to list models: {e}[/red]")
+        console.print(f"[red]✗ Failed to list models: {e}[/red]")
         _logger.error("Failed to list models: {}", e)
         raise typer.Exit(code=1) from None
 
     models = data.get("data", [])
 
     if not models:
-        console.print("[yellow]No models available on the server[/yellow]")
+        console.print("[yellow]⚠ No models available on the server[/yellow]")
         return
 
-    table = Table(title="Local Models")
-    table.add_column("Model ID", style="cyan")
-    table.add_column("Owner", style="blue")
-
-    for model in models:
-        model_id = model.get("id", "unknown")
-        owner = model.get("owned_by", "unknown")
-        table.add_row(model_id, owner)
-
+    table = create_local_models_table(models)
     console.print(table)
     console.print(f"\n[dim]Server: {host}:{port}[/dim]")
 
@@ -125,7 +111,7 @@ def search(
     # Validate sort option
     valid_sorts: list[SortOption] = ["downloads", "likes", "trending_score", "created_at", "last_modified"]
     if sort not in valid_sorts:
-        console.print(f"[red]Invalid sort option: {sort}[/red]")
+        console.print(f"[red]✗ Invalid sort option: {sort}[/red]")
         console.print(f"Valid options: {', '.join(valid_sorts)}")
         raise typer.Exit(code=1)
 
@@ -138,12 +124,12 @@ def search(
                 sort_by=sort,  # type: ignore[arg-type]
             )
         except Exception as e:
-            console.print(f"[red]Search failed: {e}[/red]")
+            console.print(f"[red]✗ Search failed: {e}[/red]")
             _logger.error("Search failed: {}", e)
             raise typer.Exit(code=1) from None
 
     if not results.top_models and not results.mlx_models:
-        console.print(f"[yellow]No models found for '{query}'[/yellow]")
+        console.print(f"[yellow]⚠ No models found for '{query}'[/yellow]")
         console.print("\nTips:")
         console.print("  - Try a broader search term")
         console.print("  - Check spelling of model name")
@@ -151,41 +137,21 @@ def search(
 
     # Section 1: Top overall models
     if results.top_models:
-        table1 = Table(title=f"Top Models: \"{query}\"")
-        table1.add_column("Model", style="cyan", max_width=35)
-        table1.add_column("Author", style="blue")
-        table1.add_column("Downloads", style="green", justify="right")
-        table1.add_column("Likes", style="magenta", justify="right")
-
-        for model in results.top_models:
-            table1.add_row(
-                model.name,
-                model.author,
-                _format_downloads(model.downloads),
-                str(model.likes),
-            )
-
+        table1 = create_search_results_table(
+            f'Top Models: "{query}"',
+            results.top_models,
+            show_quant=False,
+        )
         console.print(table1)
         console.print()
 
     # Section 2: MLX-optimized models
     if results.mlx_models:
-        table2 = Table(title="MLX-Optimized for Apple Silicon")
-        table2.add_column("Model", style="cyan", max_width=35)
-        table2.add_column("Author", style="blue")
-        table2.add_column("Quant", style="yellow", justify="center")
-        table2.add_column("Downloads", style="green", justify="right")
-        table2.add_column("Likes", style="magenta", justify="right")
-
-        for model in results.mlx_models:
-            table2.add_row(
-                model.name,
-                model.author,
-                model.quantization.value,
-                _format_downloads(model.downloads),
-                str(model.likes),
-            )
-
+        table2 = create_search_results_table(
+            "MLX-Optimized for Apple Silicon",
+            results.mlx_models,
+            show_quant=True,
+        )
         console.print(table2)
 
     total = len(results.top_models) + len(results.mlx_models)
@@ -209,14 +175,14 @@ def info(
         model = get_model_info(model_id)
 
     if model is None:
-        console.print(f"[red]Model not found: {model_id}[/red]")
+        console.print(f"[red]✗ Model not found: {model_id}[/red]")
         raise typer.Exit(code=1)
 
     # Display model info
     console.print(f"\n[bold cyan]{model.id}[/bold cyan]")
     console.print(f"  Author: {model.author}")
     console.print(f"  Quantization: {model.quantization.value}")
-    console.print(f"  Downloads: {_format_downloads(model.downloads)}")
+    console.print(f"  Downloads: {format_downloads(model.downloads)}")
     console.print(f"  Likes: {model.likes}")
     console.print(f"  Last Modified: {model.last_modified}")
     console.print(f"  Source: {model.source_label}")

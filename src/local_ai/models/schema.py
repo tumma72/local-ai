@@ -13,11 +13,13 @@ class Quantization(str, Enum):
     """Quantization level for models."""
 
     Q4 = "4bit"
+    Q5 = "5bit"
+    Q6 = "6bit"
     Q8 = "8bit"
     BF16 = "bf16"
     FP16 = "fp16"
     FP32 = "fp32"
-    UNKNOWN = "unknown"
+    UNKNOWN = "-"
 
 
 def extract_quantization(model_id: str) -> Quantization:
@@ -34,6 +36,10 @@ def extract_quantization(model_id: str) -> Quantization:
     # Check for explicit bit patterns
     if "4bit" in name_lower or "-4b-" in name_lower or "-q4" in name_lower:
         return Quantization.Q4
+    if "5bit" in name_lower or "-5b-" in name_lower or "-q5" in name_lower:
+        return Quantization.Q5
+    if "6bit" in name_lower or "-6b-" in name_lower or "-q6" in name_lower:
+        return Quantization.Q6
     if "8bit" in name_lower or "-8b-" in name_lower or "-q8" in name_lower:
         return Quantization.Q8
     if "bf16" in name_lower:
@@ -50,6 +56,10 @@ def extract_quantization(model_id: str) -> Quantization:
             bits = match.group(1)
             if bits == "4":
                 return Quantization.Q4
+            if bits == "5":
+                return Quantization.Q5
+            if bits == "6":
+                return Quantization.Q6
             if bits == "8":
                 return Quantization.Q8
 
