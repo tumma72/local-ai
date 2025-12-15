@@ -17,6 +17,32 @@ class TaskDifficulty(str, Enum):
     COMPLEX = "complex"  # ~1000-2000 output tokens
 
 
+class BenchmarkMode(str, Enum):
+    """Execution mode for benchmarks."""
+
+    RAW = "raw"  # Direct API call, single shot
+    AGENTIC = "agentic"  # Multi-turn with Goose recipes
+
+
+class TestResults(BaseModel):
+    """Results from running tests on generated code."""
+
+    passed: int = Field(ge=0, description="Number of tests passed")
+    failed: int = Field(ge=0, description="Number of tests failed")
+    errors: int = Field(ge=0, description="Number of tests with errors")
+    skipped: int = Field(ge=0, description="Number of tests skipped")
+    total: int = Field(ge=0, description="Total number of tests")
+    output: str = Field(default="", description="Raw pytest output")
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def success_rate(self) -> float:
+        """Percentage of tests that passed."""
+        if self.total == 0:
+            return 0.0
+        return self.passed / self.total
+
+
 class TimingMetrics(BaseModel):
     """Timing measurements for a single benchmark run."""
 
@@ -79,6 +105,13 @@ class BenchmarkResult(BaseModel):
     started_at: datetime = Field(description="When benchmark started")
     completed_at: datetime = Field(description="When benchmark completed")
     runs: list[SingleRunResult] = Field(description="Individual run results")
+    mode: BenchmarkMode = Field(default=BenchmarkMode.RAW, description="Execution mode")
+    test_results: TestResults | None = Field(
+        default=None, description="Test results if task uses test validation"
+    )
+    working_directory: str | None = Field(
+        default=None, description="Directory containing generated code"
+    )
 
     @computed_field  # type: ignore[prop-decorator]
     @property

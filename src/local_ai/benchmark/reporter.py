@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from local_ai.benchmark.schema import BenchmarkResult
+from local_ai.benchmark.schema import BenchmarkMode, BenchmarkResult
 from local_ai.logging import get_logger
 
 _logger = get_logger("Benchmark.reporter")
@@ -103,16 +103,31 @@ class BenchmarkReporter:
         comparison: list[dict[str, Any]] = []
 
         for result in results:
-            comparison.append({
+            row = {
                 "model": result.model,
                 "task_id": result.task.id,
                 "task_name": result.task.name,
                 "num_runs": len(result.runs),
+                "mode": result.mode.value if result.mode else BenchmarkMode.RAW.value,
                 "avg_tokens_per_second": result.avg_tokens_per_second,
                 "avg_ttft_ms": result.avg_ttft_ms,
                 "success_rate": result.success_rate,
                 "timestamp": result.started_at.isoformat(),
-            })
+            }
+
+            # Add test results if available
+            if result.test_results:
+                row["tests_passed"] = result.test_results.passed
+                row["tests_failed"] = result.test_results.failed
+                row["tests_total"] = result.test_results.total
+                row["test_success_rate"] = result.test_results.success_rate
+            else:
+                row["tests_passed"] = None
+                row["tests_failed"] = None
+                row["tests_total"] = None
+                row["test_success_rate"] = None
+
+            comparison.append(row)
 
         # Sort by tokens per second (highest first)
         comparison.sort(key=lambda x: x["avg_tokens_per_second"], reverse=True)
@@ -130,22 +145,68 @@ class BenchmarkReporter:
             Console().print("[yellow]No benchmark results found[/yellow]")
             return
 
+        # Check if any results have test data
+        has_tests = any(row.get("tests_total") is not None for row in comparison)
+
         table = Table(title="Benchmark Comparison")
         table.add_column("Model", style="cyan")
         table.add_column("Task", style="white")
+        table.add_column("Mode", style="blue")
         table.add_column("Tok/s", style="green", justify="right")
-        table.add_column("TTFT (ms)", style="yellow", justify="right")
+        table.add_column("TTFT", style="yellow", justify="right")
         table.add_column("Success", style="magenta", justify="right")
+
+        if has_tests:
+            table.add_column("Tests", style="cyan", justify="right")
+
         table.add_column("Runs", justify="right")
 
         for row in comparison:
-            table.add_row(
-                row["model"],
+            # Format mode: short version for display
+            mode_display = "A" if row.get("mode") == "agentic" else "R"
+
+            cells = [
+                _truncate_model_name(row["model"]),
                 row["task_id"],
+                mode_display,
                 f"{row['avg_tokens_per_second']:.1f}",
-                f"{row['avg_ttft_ms']:.0f}",
+                f"{row['avg_ttft_ms']:.0f}ms",
                 f"{row['success_rate']:.0%}",
-                str(row["num_runs"]),
-            )
+            ]
+
+            if has_tests:
+                tests_total = row.get("tests_total")
+                if tests_total is not None:
+                    tests_passed = row.get("tests_passed", 0)
+                    if tests_passed == tests_total:
+                        cells.append(f"[green]{tests_passed}/{tests_total}[/green]")
+                    elif tests_passed > 0:
+                        cells.append(f"[yellow]{tests_passed}/{tests_total}[/yellow]")
+                    else:
+                        cells.append(f"[red]{tests_passed}/{tests_total}[/red]")
+                else:
+                    cells.append("-")
+
+            cells.append(str(row["num_runs"]))
+
+            table.add_row(*cells)
 
         Console().print(table)
+        Console().print("\n[dim]Mode: R=Raw API, A=Agentic (Goose)[/dim]")
+
+
+def _truncate_model_name(model: str, max_len: int = 30) -> str:
+    """Truncate model name for display.
+
+    Args:
+        model: Full model identifier.
+        max_len: Maximum display length.
+
+    Returns:
+        Truncated model name.
+    """
+    # Take only the model name part (after /)
+    name = model.split("/")[-1]
+    if len(name) > max_len:
+        return name[: max_len - 3] + "..."
+    return name
