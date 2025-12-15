@@ -4,17 +4,27 @@ Provides subcommands for model discovery and management:
 - list: List locally available models
 - search: Search HuggingFace for models
 - info: Get detailed model information
+- download: Download models from HuggingFace
 """
 
+from pathlib import Path
 from typing import Annotated
 
 import httpx
 import typer
+from huggingface_hub import snapshot_download
 
+from local_ai.hardware import (
+    detect_hardware,
+    estimate_model_params_from_name,
+    get_max_model_size_gb,
+    get_recommended_quantization,
+)
 from local_ai.logging import configure_logging, get_logger
 from local_ai.models.huggingface import (
     SortOption,
     create_local_model_result,
+    get_local_model_size,
     search_models_enhanced,
 )
 from local_ai.output import (
@@ -197,3 +207,145 @@ def info(
 
     if model.tags:
         console.print(f"  Tags: {', '.join(model.tags[:10])}")
+
+
+@models_app.command()
+def download(
+    model_id: Annotated[str, typer.Argument(help="Full model ID (e.g., mlx-community/Qwen3-8B-4bit)")],
+    convert: Annotated[
+        bool, typer.Option("--convert", "-c", help="Convert to MLX format (for non-MLX models)")
+    ] = False,
+    quantize: Annotated[
+        str | None, typer.Option("--quantize", "-q", help="Quantization level: 4bit, 6bit, 8bit, or 'auto'")
+    ] = None,
+    output_dir: Annotated[
+        str | None, typer.Option("--output", "-o", help="Output directory for converted models")
+    ] = None,
+    force: Annotated[
+        bool, typer.Option("--force", "-f", help="Force re-download even if cached")
+    ] = False,
+    log_level: Annotated[
+        str, typer.Option("--log-level", "-l", help="Log level")
+    ] = "INFO",
+) -> None:
+    """Download a model from HuggingFace.
+
+    For MLX-optimized models (from mlx-community), simply downloads to cache.
+    For other models, use --convert to convert to MLX format.
+
+    Examples:
+        local-ai models download mlx-community/Qwen3-8B-4bit
+        local-ai models download mistralai/Devstral-Small-2505 --convert --quantize auto
+        local-ai models download Qwen/Qwen3-30B --convert --quantize 4bit
+    """
+    configure_logging(log_level=log_level, console=False)
+    _logger.info("CLI models download: model_id={}, convert={}, quantize={}", model_id, convert, quantize)
+
+    # Check if already downloaded
+    existing_size = get_local_model_size(model_id)
+    if existing_size and not force:
+        size_gb = existing_size / (1024**3)
+        console.print(f"[green]✓[/green] Model already downloaded: {model_id}")
+        console.print(f"  Size: {size_gb:.1f} GB")
+        console.print(f"\n[dim]Use --force to re-download[/dim]")
+        return
+
+    # If converting, determine quantization
+    if convert:
+        _download_and_convert(model_id, quantize, output_dir)
+    else:
+        _download_mlx_model(model_id, force)
+
+
+def _download_mlx_model(model_id: str, force: bool) -> None:
+    """Download an MLX-optimized model."""
+    console.print(f"[bold]Downloading {model_id}...[/bold]\n")
+
+    try:
+        cache_path = snapshot_download(
+            repo_id=model_id,
+            force_download=force,
+        )
+        console.print(f"\n[green]✓[/green] Downloaded to: {cache_path}")
+
+        # Show size
+        size = get_local_model_size(model_id)
+        if size:
+            size_gb = size / (1024**3)
+            console.print(f"  Size: {size_gb:.1f} GB")
+
+    except Exception as e:
+        console.print(f"[red]✗ Download failed: {e}[/red]")
+        _logger.error("Download failed: {}", e)
+        raise typer.Exit(code=1) from None
+
+
+def _download_and_convert(
+    model_id: str,
+    quantize: str | None,
+    output_dir: str | None,
+) -> None:
+    """Download and convert a model to MLX format."""
+    from mlx_lm import convert as mlx_convert
+
+    # Determine quantization
+    q_bits: int | None = None
+    if quantize == "auto":
+        # Auto-detect based on hardware
+        try:
+            hw = detect_hardware()
+            params = estimate_model_params_from_name(model_id)
+            if params:
+                recommended = get_recommended_quantization(params, hw)
+                if recommended == "too_large":
+                    max_size = get_max_model_size_gb(hw)
+                    console.print(f"[red]✗ Model too large for available memory (~{max_size:.0f} GB max)[/red]")
+                    console.print("\nTry a smaller model or lower quantization.")
+                    raise typer.Exit(code=1)
+                q_bits = int(recommended.replace("bit", ""))
+                console.print(f"[cyan]Auto-detected:[/cyan] {params:.0f}B params → {recommended} recommended")
+            else:
+                console.print("[yellow]⚠ Could not detect model size, using 4bit default[/yellow]")
+                q_bits = 4
+        except RuntimeError:
+            console.print("[yellow]⚠ Hardware detection failed, using 4bit default[/yellow]")
+            q_bits = 4
+    elif quantize:
+        q_bits = int(quantize.replace("bit", ""))
+
+    # Determine output directory
+    if output_dir:
+        mlx_path = Path(output_dir)
+    else:
+        # Default: ~/.local/share/local-ai/models/{model_name}
+        model_name = model_id.replace("/", "_")
+        if q_bits:
+            model_name = f"{model_name}-{q_bits}bit-mlx"
+        else:
+            model_name = f"{model_name}-mlx"
+        mlx_path = Path.home() / ".local" / "share" / "local-ai" / "models" / model_name
+
+    console.print(f"[bold]Converting {model_id} to MLX format...[/bold]")
+    if q_bits:
+        console.print(f"  Quantization: {q_bits}bit")
+    console.print(f"  Output: {mlx_path}\n")
+
+    try:
+        mlx_convert(
+            hf_path=model_id,
+            mlx_path=str(mlx_path),
+            quantize=q_bits is not None,
+            q_bits=q_bits or 4,
+        )
+        console.print(f"\n[green]✓[/green] Converted to: {mlx_path}")
+
+        # Show size
+        if mlx_path.exists():
+            total_size = sum(f.stat().st_size for f in mlx_path.rglob("*") if f.is_file())
+            size_gb = total_size / (1024**3)
+            console.print(f"  Size: {size_gb:.1f} GB")
+
+    except Exception as e:
+        console.print(f"[red]✗ Conversion failed: {e}[/red]")
+        _logger.error("Conversion failed: {}", e)
+        raise typer.Exit(code=1) from None
