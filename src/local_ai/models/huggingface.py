@@ -275,16 +275,18 @@ def get_local_model_size(model_id: str) -> int | None:
         Size in bytes, or None if not found in cache.
     """
     # HuggingFace cache structure: ~/.cache/huggingface/hub/models--org--name/
+    # - blobs/ contains actual file content (by hash)
+    # - snapshots/ contains symlinks to blobs (would double-count if included)
     cache_dir = Path.home() / ".cache" / "huggingface" / "hub"
     model_cache_name = f"models--{model_id.replace('/', '--')}"
-    model_path = cache_dir / model_cache_name
+    blobs_path = cache_dir / model_cache_name / "blobs"
 
-    if not model_path.exists():
+    if not blobs_path.exists():
         return None
 
-    # Calculate total size of all files in the model cache
+    # Only count files in blobs/ to avoid double-counting via symlinks
     try:
-        total_size = sum(f.stat().st_size for f in model_path.rglob("*") if f.is_file())
+        total_size = sum(f.stat().st_size for f in blobs_path.iterdir() if f.is_file())
         return total_size if total_size > 0 else None
     except Exception as e:
         _logger.debug("Failed to get local size for {}: {}", model_id, e)
