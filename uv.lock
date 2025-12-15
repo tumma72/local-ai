@@ -1269,6 +1269,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
+    { name = "huggingface-hub" },
     { name = "loguru" },
     { name = "mlx-lm" },
     { name = "mlx-omni-server" },
@@ -1293,6 +1294,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "httpx", specifier = ">=0.28.1" },
+    { name = "huggingface-hub", specifier = ">=0.28.0" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "mlx-lm", specifier = "<0.28.3" },
     { name = "mlx-omni-server", specifier = ">=0.0.7" },

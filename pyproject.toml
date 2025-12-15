@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "httpx>=0.28.1",
+    "huggingface-hub>=0.28.0",
     "loguru>=0.7.3",
     "mlx-lm<0.28.3",
     "mlx-omni-server>=0.0.7",

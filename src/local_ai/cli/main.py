@@ -3,6 +3,7 @@
 import typer
 
 from local_ai.cli.benchmark import benchmark_app
+from local_ai.cli.models import models_app
 from local_ai.cli.server import server_app
 
 app = typer.Typer(
@@ -13,6 +14,7 @@ app = typer.Typer(
 
 app.add_typer(server_app, name="server")
 app.add_typer(benchmark_app, name="benchmark")
+app.add_typer(models_app, name="models")
 
 
 def version_callback(value: bool) -> None:
