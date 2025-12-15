@@ -12,7 +12,11 @@ import httpx
 import typer
 
 from local_ai.logging import configure_logging, get_logger
-from local_ai.models.huggingface import SortOption, search_models_enhanced
+from local_ai.models.huggingface import (
+    SortOption,
+    create_local_model_result,
+    search_models_enhanced,
+)
 from local_ai.output import (
     console,
     create_local_models_table,
@@ -67,11 +71,14 @@ def list_models(
         _logger.error("Failed to list models: {}", e)
         raise typer.Exit(code=1) from None
 
-    models = data.get("data", [])
+    raw_models = data.get("data", [])
 
-    if not models:
+    if not raw_models:
         console.print("[yellow]⚠ No models available on the server[/yellow]")
         return
+
+    # Convert to ModelSearchResult with local cache info
+    models = [create_local_model_result(m.get("id", "")) for m in raw_models]
 
     table = create_local_models_table(models)
     console.print(table)
@@ -182,6 +189,7 @@ def info(
     console.print(f"\n[bold cyan]{model.id}[/bold cyan]")
     console.print(f"  Author: {model.author}")
     console.print(f"  Quantization: {model.quantization.value}")
+    console.print(f"  Size: {model.size_gb}")
     console.print(f"  Downloads: {format_downloads(model.downloads)}")
     console.print(f"  Likes: {model.likes}")
     console.print(f"  Last Modified: {model.last_modified}")

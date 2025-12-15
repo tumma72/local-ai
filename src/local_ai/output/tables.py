@@ -114,23 +114,24 @@ def create_search_results_table(
 
 
 def create_local_models_table(
-    models: list[dict],
+    models: list[ModelSearchResult],
     title: str = "Local Models",
 ) -> Table:
     """Create a table for locally available models.
 
     Args:
-        models: List of model dicts from OpenAI-compatible API.
+        models: List of ModelSearchResult objects.
         title: Table title.
 
     Returns:
         A Rich Table with local model data.
     """
     table = Table(title=title, expand=True)
-    table.add_column("Model", style="cyan", no_wrap=True)
+    table.add_column("Model", style="cyan", no_wrap=True, ratio=3)
+    table.add_column("Quant", style="yellow", justify="center", width=6)
+    table.add_column("Size", style="green", justify="right", width=8)
 
     for model in models:
-        model_id = model.get("id", "unknown")
-        table.add_row(model_id)
+        table.add_row(model.id, model.quantization.value, model.size_gb)
 
     return table

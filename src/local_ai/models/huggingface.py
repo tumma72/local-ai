@@ -4,6 +4,7 @@ Searches HuggingFace Hub for MLX-optimized models compatible with Apple Silicon.
 """
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal
 
 from huggingface_hub import HfApi, ModelInfo
@@ -33,12 +34,17 @@ class SearchResults:
     mlx_models: list[ModelSearchResult]  # MLX-optimized versions
 
 
-def _convert_model(model: ModelInfo, is_community: bool = False) -> ModelSearchResult:
+def _convert_model(
+    model: ModelInfo,
+    is_community: bool = False,
+    size_bytes: int | None = None,
+) -> ModelSearchResult:
     """Convert HuggingFace ModelInfo to ModelSearchResult.
 
     Args:
         model: HuggingFace Hub model info.
         is_community: Whether this is from mlx-community org.
+        size_bytes: Optional total size in bytes.
 
     Returns:
         ModelSearchResult for display.
@@ -51,6 +57,7 @@ def _convert_model(model: ModelInfo, is_community: bool = False) -> ModelSearchR
         last_modified=str(model.last_modified) if model.last_modified else "",
         is_mlx_community=is_community or (model.author == MLX_COMMUNITY_ORG),
         tags=list(model.tags) if model.tags else [],
+        size_bytes=size_bytes,
     )
 
 
@@ -238,9 +245,69 @@ def get_model_info(model_id: str) -> ModelSearchResult | None:
     api = HfApi()
 
     try:
-        info = api.model_info(repo_id=model_id, files_metadata=False)
-        return _convert_model(info, is_community=(info.author == MLX_COMMUNITY_ORG))
+        info = api.model_info(repo_id=model_id, files_metadata=True)
+
+        # Calculate total size from file metadata
+        size_bytes: int | None = None
+        if info.siblings:
+            total = sum(f.size or 0 for f in info.siblings)
+            if total > 0:
+                size_bytes = total
+
+        return _convert_model(
+            info,
+            is_community=(info.author == MLX_COMMUNITY_ORG),
+            size_bytes=size_bytes,
+        )
 
     except Exception as e:
         _logger.error("Failed to get model info for {}: {}", model_id, e)
         return None
+
+
+def get_local_model_size(model_id: str) -> int | None:
+    """Get size of a locally cached model.
+
+    Args:
+        model_id: Full model ID (e.g., mlx-community/Qwen3-8B-4bit).
+
+    Returns:
+        Size in bytes, or None if not found in cache.
+    """
+    # HuggingFace cache structure: ~/.cache/huggingface/hub/models--org--name/
+    cache_dir = Path.home() / ".cache" / "huggingface" / "hub"
+    model_cache_name = f"models--{model_id.replace('/', '--')}"
+    model_path = cache_dir / model_cache_name
+
+    if not model_path.exists():
+        return None
+
+    # Calculate total size of all files in the model cache
+    try:
+        total_size = sum(f.stat().st_size for f in model_path.rglob("*") if f.is_file())
+        return total_size if total_size > 0 else None
+    except Exception as e:
+        _logger.debug("Failed to get local size for {}: {}", model_id, e)
+        return None
+
+
+def create_local_model_result(model_id: str) -> ModelSearchResult:
+    """Create a ModelSearchResult for a locally available model.
+
+    Uses local cache for size, extracts quantization from name.
+
+    Args:
+        model_id: Full model ID.
+
+    Returns:
+        ModelSearchResult with available local info.
+    """
+    author = model_id.split("/")[0] if "/" in model_id else ""
+    size_bytes = get_local_model_size(model_id)
+
+    return ModelSearchResult(
+        id=model_id,
+        author=author,
+        is_mlx_community=(author == MLX_COMMUNITY_ORG),
+        size_bytes=size_bytes,
+    )

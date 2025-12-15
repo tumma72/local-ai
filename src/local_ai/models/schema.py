@@ -78,6 +78,7 @@ class ModelSearchResult(BaseModel):
         default=False, description="True if from mlx-community org"
     )
     tags: list[str] = Field(default_factory=list, description="Model tags")
+    size_bytes: int | None = Field(default=None, description="Total model size in bytes")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -96,3 +97,14 @@ class ModelSearchResult(BaseModel):
     def source_label(self) -> str:
         """Get display label for source."""
         return "★ MLX" if self.is_mlx_community else "mlx"
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def size_gb(self) -> str:
+        """Format size in GB for display."""
+        if self.size_bytes is None:
+            return "-"
+        gb = self.size_bytes / (1024 * 1024 * 1024)
+        if gb >= 10:
+            return f"{gb:.0f} GB"
+        return f"{gb:.1f} GB"
