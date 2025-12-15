@@ -1,17 +1,20 @@
 """CLI models commands for local-ai.
 
 Provides subcommands for model discovery and management:
-- search: Search HuggingFace for MLX-optimized models
+- list: List locally available models
+- search: Search HuggingFace for models
+- info: Get detailed model information
 """
 
 from typing import Annotated
 
+import httpx
 import typer
 from rich.console import Console
 from rich.table import Table
 
 from local_ai.logging import configure_logging, get_logger
-from local_ai.models.huggingface import SortOption, search_models
+from local_ai.models.huggingface import SortOption, search_models_enhanced
 
 console = Console()
 _logger = get_logger("CLI.models")
@@ -32,34 +35,92 @@ def _format_downloads(count: int) -> str:
     return str(count)
 
 
+@models_app.command("list")
+def list_models(
+    host: Annotated[str, typer.Option("--host", help="Server host")] = "127.0.0.1",
+    port: Annotated[int, typer.Option("--port", "-p", help="Server port")] = 10240,
+    log_level: Annotated[str, typer.Option("--log-level", "-l", help="Log level")] = "INFO",
+) -> None:
+    """List locally available models from the running server.
+
+    Shows models currently loaded or available on the local MLX server.
+    The server must be running for this command to work.
+
+    Examples:
+        local-ai models list
+        local-ai models list --port 8080
+    """
+    configure_logging(log_level=log_level, console=False)
+    _logger.info("CLI models list: host={}, port={}", host, port)
+
+    url = f"http://{host}:{port}/v1/models"
+
+    try:
+        response = httpx.get(url, timeout=10.0)
+        response.raise_for_status()
+        data = response.json()
+
+    except httpx.ConnectError:
+        console.print(f"[red]Cannot connect to server at {host}:{port}[/red]")
+        console.print("\nMake sure the server is running:")
+        console.print("  local-ai server start")
+        raise typer.Exit(code=1) from None
+    except httpx.HTTPStatusError as e:
+        console.print(f"[red]Server error: {e.response.status_code}[/red]")
+        raise typer.Exit(code=1) from None
+    except Exception as e:
+        console.print(f"[red]Failed to list models: {e}[/red]")
+        _logger.error("Failed to list models: {}", e)
+        raise typer.Exit(code=1) from None
+
+    models = data.get("data", [])
+
+    if not models:
+        console.print("[yellow]No models available on the server[/yellow]")
+        return
+
+    table = Table(title="Local Models")
+    table.add_column("Model ID", style="cyan")
+    table.add_column("Owner", style="blue")
+
+    for model in models:
+        model_id = model.get("id", "unknown")
+        owner = model.get("owned_by", "unknown")
+        table.add_row(model_id, owner)
+
+    console.print(table)
+    console.print(f"\n[dim]Server: {host}:{port}[/dim]")
+
+
 @models_app.command()
 def search(
     query: Annotated[str, typer.Argument(help="Model name to search for")],
+    top: Annotated[
+        int, typer.Option("--top", "-t", help="Number of top overall models to show")
+    ] = 3,
     limit: Annotated[
-        int, typer.Option("--limit", "-n", help="Maximum results to show")
-    ] = 20,
+        int, typer.Option("--limit", "-n", help="Number of MLX-optimized models to show")
+    ] = 10,
     sort: Annotated[
         str, typer.Option("--sort", "-s", help="Sort by: downloads, likes, trending_score")
     ] = "downloads",
-    all_sources: Annotated[
-        bool, typer.Option("--all", "-a", help="Include non-mlx-community models")
-    ] = False,
     log_level: Annotated[
         str, typer.Option("--log-level", "-l", help="Log level")
     ] = "INFO",
 ) -> None:
-    """Search HuggingFace for MLX-optimized models.
+    """Search HuggingFace for models.
 
-    By default, searches only mlx-community models which are pre-optimized
-    for Apple Silicon. Use --all to include other MLX-tagged models.
+    Shows two sections:
+    1. Top models by downloads (from original creators like mistralai, Qwen)
+    2. MLX-optimized versions for Apple Silicon
 
     Examples:
-        local-ai models search qwen3-coder
-        local-ai models search llama --limit 10 --sort likes
-        local-ai models search devstral --all
+        local-ai models search devstral
+        local-ai models search qwen3-coder --limit 5
+        local-ai models search llama --sort likes
     """
     configure_logging(log_level=log_level, console=False)
-    _logger.info("CLI models search: query={}, limit={}, sort={}", query, limit, sort)
+    _logger.info("CLI models search: query={}, top={}, limit={}, sort={}", query, top, limit, sort)
 
     # Validate sort option
     valid_sorts: list[SortOption] = ["downloads", "likes", "trending_score", "created_at", "last_modified"]
@@ -70,43 +131,65 @@ def search(
 
     with console.status(f"[bold green]Searching for '{query}'...[/bold green]"):
         try:
-            results = search_models(
+            results = search_models_enhanced(
                 query=query,
-                limit=limit,
+                top_limit=top,
+                mlx_limit=limit,
                 sort_by=sort,  # type: ignore[arg-type]
-                include_all_mlx=all_sources,
             )
         except Exception as e:
             console.print(f"[red]Search failed: {e}[/red]")
             _logger.error("Search failed: {}", e)
             raise typer.Exit(code=1) from None
 
-    if not results:
+    if not results.top_models and not results.mlx_models:
         console.print(f"[yellow]No models found for '{query}'[/yellow]")
         console.print("\nTips:")
         console.print("  - Try a broader search term")
-        console.print("  - Use --all to include non-mlx-community models")
+        console.print("  - Check spelling of model name")
         return
 
-    # Build results table
-    table = Table(title=f"Model Search: \"{query}\"")
-    table.add_column("Model", style="cyan", max_width=40)
-    table.add_column("Quant", style="yellow", justify="center")
-    table.add_column("Downloads", style="green", justify="right")
-    table.add_column("Likes", style="magenta", justify="right")
-    table.add_column("Source", style="blue", justify="center")
+    # Section 1: Top overall models
+    if results.top_models:
+        table1 = Table(title=f"Top Models: \"{query}\"")
+        table1.add_column("Model", style="cyan", max_width=35)
+        table1.add_column("Author", style="blue")
+        table1.add_column("Downloads", style="green", justify="right")
+        table1.add_column("Likes", style="magenta", justify="right")
 
-    for model in results:
-        table.add_row(
-            model.name,
-            model.quantization.value,
-            _format_downloads(model.downloads),
-            str(model.likes),
-            model.source_label,
-        )
+        for model in results.top_models:
+            table1.add_row(
+                model.name,
+                model.author,
+                _format_downloads(model.downloads),
+                str(model.likes),
+            )
 
-    console.print(table)
-    console.print(f"\n[dim]Showing {len(results)} results. ★ MLX = mlx-community (pre-optimized for Apple Silicon)[/dim]")
+        console.print(table1)
+        console.print()
+
+    # Section 2: MLX-optimized models
+    if results.mlx_models:
+        table2 = Table(title="MLX-Optimized for Apple Silicon")
+        table2.add_column("Model", style="cyan", max_width=35)
+        table2.add_column("Author", style="blue")
+        table2.add_column("Quant", style="yellow", justify="center")
+        table2.add_column("Downloads", style="green", justify="right")
+        table2.add_column("Likes", style="magenta", justify="right")
+
+        for model in results.mlx_models:
+            table2.add_row(
+                model.name,
+                model.author,
+                model.quantization.value,
+                _format_downloads(model.downloads),
+                str(model.likes),
+            )
+
+        console.print(table2)
+
+    total = len(results.top_models) + len(results.mlx_models)
+    console.print(f"\n[dim]Showing {total} results ({len(results.top_models)} top + {len(results.mlx_models)} MLX-optimized)[/dim]")
 
 
 @models_app.command()

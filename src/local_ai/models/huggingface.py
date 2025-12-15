@@ -3,6 +3,7 @@
 Searches HuggingFace Hub for MLX-optimized models compatible with Apple Silicon.
 """
 
+from dataclasses import dataclass
 from typing import Literal
 
 from huggingface_hub import HfApi, ModelInfo
@@ -15,7 +16,21 @@ _logger = get_logger("Models.huggingface")
 # MLX Community org produces pre-optimized models
 MLX_COMMUNITY_ORG = "mlx-community"
 
+# Known trusted organizations for original models
+TRUSTED_ORGS = {
+    "mistralai", "meta-llama", "Qwen", "google", "microsoft",
+    "deepseek-ai", "THUDM", "01-ai", "internlm", "bigcode",
+}
+
 SortOption = Literal["downloads", "likes", "trending_score", "created_at", "last_modified"]
+
+
+@dataclass
+class SearchResults:
+    """Combined search results with original and optimized models."""
+
+    top_models: list[ModelSearchResult]  # Top downloads (any source)
+    mlx_models: list[ModelSearchResult]  # MLX-optimized versions
 
 
 def _convert_model(model: ModelInfo, is_community: bool = False) -> ModelSearchResult:
@@ -113,6 +128,102 @@ def search_models(
 
     _logger.info("Returning {} models", len(results))
     return results
+
+
+def search_models_enhanced(
+    query: str,
+    top_limit: int = 3,
+    mlx_limit: int = 10,
+    sort_by: SortOption = "downloads",
+) -> SearchResults:
+    """Search HuggingFace with enhanced strategy showing original + MLX models.
+
+    Returns two sections:
+    1. Top models by downloads (any source, including original creators)
+    2. MLX-optimized versions for Apple Silicon
+
+    Args:
+        query: Search query (model name).
+        top_limit: Number of top overall models to show.
+        mlx_limit: Number of MLX-optimized models to show.
+        sort_by: Sort field.
+
+    Returns:
+        SearchResults with top_models and mlx_models lists.
+    """
+    api = HfApi()
+    seen_ids: set[str] = set()
+
+    _logger.info("Enhanced search for: {}", query)
+
+    top_models: list[ModelSearchResult] = []
+    mlx_models: list[ModelSearchResult] = []
+
+    # Section 1: Top overall models (no MLX filter)
+    # This shows original models from creators like mistralai, Qwen, etc.
+    try:
+        all_models = api.list_models(
+            search=query,
+            sort=sort_by,
+            direction=-1,
+            limit=top_limit * 3,  # Fetch extra to filter
+            full=True,
+        )
+
+        for model in all_models:
+            if model.id and model.id not in seen_ids and len(top_models) < top_limit:
+                # Skip mlx-community here (they'll be in section 2)
+                if model.author == MLX_COMMUNITY_ORG:
+                    continue
+                top_models.append(_convert_model(model, is_community=False))
+                seen_ids.add(model.id)
+
+        _logger.debug("Found {} top models", len(top_models))
+
+    except Exception as e:
+        _logger.warning("Failed to search top models: {}", e)
+
+    # Section 2: MLX-optimized models (mlx-community first, then other MLX)
+    try:
+        # First from mlx-community
+        community_models = api.list_models(
+            search=query,
+            author=MLX_COMMUNITY_ORG,
+            sort=sort_by,
+            direction=-1,
+            limit=mlx_limit,
+            full=True,
+        )
+
+        for model in community_models:
+            if model.id and model.id not in seen_ids and len(mlx_models) < mlx_limit:
+                mlx_models.append(_convert_model(model, is_community=True))
+                seen_ids.add(model.id)
+
+        _logger.debug("Found {} mlx-community models", len(mlx_models))
+
+        # Then other MLX-tagged models if needed
+        if len(mlx_models) < mlx_limit:
+            remaining = mlx_limit - len(mlx_models)
+            other_mlx = api.list_models(
+                search=query,
+                filter="mlx",
+                sort=sort_by,
+                direction=-1,
+                limit=remaining * 2,
+                full=True,
+            )
+
+            for model in other_mlx:
+                if model.id and model.id not in seen_ids and len(mlx_models) < mlx_limit:
+                    mlx_models.append(_convert_model(model, is_community=False))
+                    seen_ids.add(model.id)
+
+    except Exception as e:
+        _logger.warning("Failed to search MLX models: {}", e)
+
+    _logger.info("Returning {} top + {} MLX models", len(top_models), len(mlx_models))
+    return SearchResults(top_models=top_models, mlx_models=mlx_models)
 
 
 def get_model_info(model_id: str) -> ModelSearchResult | None:
