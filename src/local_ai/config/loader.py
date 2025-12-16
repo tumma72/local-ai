@@ -124,18 +124,10 @@ def load_config(
     port_value = port if port is not None else _get_nested(toml_config, ["server", "port"])
     host_value = host or _get_nested(toml_config, ["server", "host"])
 
-    # Validate that model is specified
-    if not raw_model_path:
-        _logger.error("Model is required but not specified")
-        raise ConfigError(
-            "Model is required but not specified. Provide it via:\n"
-            "  1. --model CLI argument\n"
-            "  2. [model] section in config.toml\n"
-            "  3. LOCAL_AI_MODEL environment variable"
-        )
-
-    # Resolve model path (handles local/ prefix for converted models)
-    model_path = _resolve_model_path(raw_model_path)
+    # Resolve model path if specified (handles local/ prefix for converted models)
+    model_path = None
+    if raw_model_path:
+        model_path = _resolve_model_path(raw_model_path)
 
     # Build server config from TOML or CLI overrides
     server_dict = toml_config.get("server", {})
@@ -148,7 +140,8 @@ def load_config(
 
     # Build model config from TOML
     model_dict = toml_config.get("model", {})
-    model_dict["path"] = model_path
+    if model_path is not None:
+        model_dict["path"] = model_path
     model_config = ModelConfig(**model_dict)
 
     # Build generation config from TOML
@@ -162,9 +155,10 @@ def load_config(
         model=model_config,
         generation=generation_config,
     )
+    model_info = model_path if model_path else "no specific model (dynamic loading)"
     _logger.info(
         "Config loaded: model={}, host={}, port={}",
-        model_path, server_config.host, server_config.port,
+        model_info, server_config.host, server_config.port,
     )
     return settings
 

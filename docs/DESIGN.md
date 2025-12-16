@@ -67,8 +67,10 @@ flowchart TB
 
 | File | Responsibility |
 |------|----------------|
-| `manager.py` | Process lifecycle: spawn mlx-omni-server, signal, PID file management |
+| `manager.py` | Process lifecycle: spawn mlx-omni-server, signal, PID file management, welcome page mounting |
 | `health.py` | Health check via `/v1/models` endpoint |
+| `welcome.py` | Welcome page FastAPI app with model tester interface (NEW) |
+| `templates/` | HTML templates for welcome page (NEW) |
 
 ## Configuration Schema
 
@@ -87,7 +89,7 @@ classDiagram
     }
 
     class ModelConfig {
-        +str path
+        +str path?  # Optional - MLX Omni Server loads models dynamically
         +Path adapter_path?
         +bool trust_remote_code = False
     }
@@ -110,6 +112,8 @@ classDiagram
 2. Environment variables (`LOCAL_AI_SERVER__PORT`)
 3. TOML file (`./config.toml` or `~/.config/local-ai/config.toml`)
 4. Default values (lowest priority)
+
+**Note**: Model configuration is now optional. MLX Omni Server loads models dynamically based on API requests rather than at startup.
 
 ## Server Lifecycle
 
@@ -135,13 +139,19 @@ stateDiagram-v2
 
 | File | Path | Purpose |
 |------|------|---------|
-| Config | `~/.config/local-ai/config.toml` | User configuration |
+| Config | `~/.config/local-ai/config.toml` | User configuration (model now optional) |
 | PID | `~/.local/state/local-ai/server.pid` | Process ID for lifecycle |
 | Logs | `~/.local/state/local-ai/logs/` | Server stdout/stderr |
 
 ## API Endpoints
 
-MLX Omni Server exposes two API families:
+MLX Omni Server exposes two API families, plus our custom welcome page:
+
+### Welcome Page (`/`)
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/` | GET | Welcome page with server status and interactive model tester |
 
 ### OpenAI-Compatible (`/v1/*`)
 
@@ -175,6 +185,8 @@ class ServerManager:
     def stop(self, force: bool = False, timeout: float = 10.0) -> StopResult: ...
     def status(self) -> ServerStatus: ...
     def is_running(self) -> bool: ...
+    def _create_welcome_app(self) -> FastAPI:  # NEW
+        """Create FastAPI app for welcome page and model tester.""" ...
 
 @dataclass
 class StartResult:
@@ -209,6 +221,80 @@ def load_config(
 ) -> LocalAISettings: ...
 ```
 
+## Welcome Page Implementation
+
+The welcome page is implemented by injecting a custom endpoint into the MLX Omni Server's FastAPI application. This requires:
+
+1. **FastAPI Mounting**: Mount our custom routes onto the MLX Omni Server's app
+2. **HTML Template**: Simple HTML/CSS/JS for the interactive interface
+3. **API Proxy**: Proxy requests to the underlying MLX Omni Server endpoints
+4. **Model Testing**: Real-time chat functionality with model selection
+
+```mermaid
+flowchart TB
+    subgraph WelcomePage[Welcome Page Components]
+        HTML[HTML Template] --> JS[JavaScript]
+        JS --> API[API Proxy]
+        API --> MLX[MLX Omni Server]
+        MLX --> Models[Model Loading]
+    end
+
+    Browser -->|GET /| WelcomePage
+    WelcomePage -->|Server Status| Browser
+    Browser -->|Chat Request| WelcomePage
+    WelcomePage -->|Model API Call| MLX
+    MLX -->|Response| WelcomePage
+    WelcomePage -->|Display| Browser
+```
+
+### Implementation Approach
+
+```python
+# In server/manager.py - enhanced to mount custom routes
+class ServerManager:
+    def _create_welcome_page_app(self) -> FastAPI:
+        """Create FastAPI app with welcome page and model tester."""
+        app = FastAPI()
+        
+        @app.get("/")
+        async def welcome_page(request: Request):
+            """Serve welcome page with server status and model tester."""
+            status = self.status()
+            models = get_models(self._host, self._port)
+            return templates.TemplateResponse(
+                "welcome.html",
+                {"request": request, "status": status, "models": models}
+            )
+        
+        @app.post("/api/chat")
+        async def proxy_chat(request: Request):
+            """Proxy chat requests to MLX Omni Server."""
+            data = await request.json()
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"http://{self._host}:{self._port}/v1/chat/completions",
+                    json=data
+                )
+            return response.json()
+        
+        return app
+```
+
+### Welcome Page Features
+
+1. **Server Status Display**: Shows current server information (host, port, health, models)
+2. **Model Selection**: Dropdown menu with all available models from `/v1/models`
+3. **Chat Interface**: Simple text input and response display area
+4. **Error Handling**: Clear error messages for model loading failures
+5. **Debugging Info**: Technical details for troubleshooting
+
+### Technical Constraints
+
+- **Lightweight**: No heavy frontend frameworks (React, Vue, etc.)
+- **Self-contained**: All assets embedded or minimal external dependencies
+- **FastAPI Integration**: Must work with MLX Omni Server's existing FastAPI app
+- **No Authentication**: Public endpoint for local development use only
+
 ## Server Command Construction
 
 The manager spawns `mlx-omni-server` with appropriate arguments:
@@ -224,6 +310,17 @@ cmd = [
 ```
 
 **Note:** Unlike mlx-lm's server, mlx-omni-server doesn't take a `--model` argument. Models are loaded dynamically when requests include the model name in the request body (e.g., `{"model": "mlx-community/Orchestrator-8B-8bit", ...}`).
+
+### Dynamic Model Loading
+
+The server now supports starting without a specific model configuration. This aligns with MLX Omni Server's design where:
+
+1. **No model required at startup** - Server starts immediately
+2. **Models loaded on-demand** - First API request triggers model loading
+3. **Multiple models supported** - Different requests can use different models
+4. **Automatic model discovery** - Available models are listed via `/v1/models` endpoint
+
+This approach provides greater flexibility and matches the underlying MLX Omni Server behavior.
 
 ## Error Handling Strategy
 

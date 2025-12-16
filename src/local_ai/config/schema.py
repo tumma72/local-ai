@@ -19,9 +19,13 @@ class ServerConfig(BaseModel):
 
 
 class ModelConfig(BaseModel):
-    """Model configuration settings."""
+    """Model configuration settings.
+    
+    Note: path is optional because MLX Omni Server loads models dynamically.
+    Models are specified in API requests rather than at server startup.
+    """
 
-    path: str
+    path: str | None = None
     adapter_path: Path | None = None
     trust_remote_code: bool = False
 
@@ -56,5 +60,5 @@ class LocalAISettings(BaseModel):
     """Complete LocalAI configuration settings."""
 
     server: ServerConfig = Field(default_factory=_default_server_config)
-    model: ModelConfig
+    model: ModelConfig = Field(default_factory=ModelConfig)
     generation: GenerationConfig = Field(default_factory=_default_generation_config)

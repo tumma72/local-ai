@@ -7,6 +7,7 @@ import contextlib
 import os
 import signal
 import subprocess
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -169,11 +170,16 @@ class ServerManager:
         if self._settings is None:
             raise ValueError("Settings required for start(). Initialize with settings=...")
 
+        model_info = (
+            f"model={self._settings.model.path}"
+            if self._settings.model.path
+            else "no specific model (dynamic loading)"
+        )
         self._logger.info(
-            "Starting server: host={}, port={}, model={}",
+            "Starting server: host={}, port={}, {}",
             self._settings.server.host,
             self._settings.server.port,
-            self._settings.model.path,
+            model_info,
         )
 
         if self.is_running():
@@ -185,15 +191,21 @@ class ServerManager:
                 error=f"Server already running with PID {pid}",
             )
 
-        # Use MLX Omni Server for dual OpenAI/Anthropic API support
-        # Note: mlx-omni-server loads models dynamically per request
+        # Use custom local-ai server that combines MLX Omni Server with welcome page
         cmd = [
-            "mlx-omni-server",
+            sys.executable,
+            "-m",
+            "local_ai.server",
             "--host",
             self._settings.server.host,
             "--port",
             str(self._settings.server.port),
         ]
+
+        # Add model if specified
+        # Add model if specified        # Add model if specified
+        if self._settings.model.path:
+            cmd.extend(["--model", self._settings.model.path])
 
         self._logger.debug("Executing command: {}", " ".join(cmd))
 

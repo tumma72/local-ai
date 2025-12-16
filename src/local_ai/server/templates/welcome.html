@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>local-ai Server - Welcome</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 2rem;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        .server-status {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 1.5rem;
+            border: 1px solid #e9ecef;
+        }
+
+        .server-status h2 {
+            color: #667eea;
+            margin-bottom: 1.5rem;
+            font-size: 1.5rem;
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+
+        .status-item {
+            padding: 0.75rem;
+            border-radius: 6px;
+            background: white;
+        }
+
+        .status-item strong {
+            display: block;
+            color: #6c757d;
+            font-size: 0.85rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .status-item span {
+            font-size: 1rem;
+            color: #495057;
+        }
+
+        .status-health {
+            grid-column: span 2;
+            text-align: center;
+            padding: 1rem;
+        }
+
+        .health-healthy {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .health-unhealthy {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .health-unknown {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .model-tester {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 1.5rem;
+            border: 1px solid #e9ecef;
+        }
+
+        .model-tester h2 {
+            color: #764ba2;
+            margin-bottom: 1.5rem;
+            font-size: 1.5rem;
+        }
+
+        .model-selector {
+            margin-bottom: 1rem;
+        }
+
+        .model-selector label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #495057;
+        }
+
+        .model-selector select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            font-size: 1rem;
+            background: white;
+            cursor: pointer;
+        }
+
+        .chat-area {
+            height: 300px;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            overflow-y: auto;
+            background: white;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .message {
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            border-radius: 6px;
+            max-width: 80%;
+        }
+
+        .user-message {
+            background: #e9ecef;
+            margin-left: auto;
+            text-align: right;
+        }
+
+        .assistant-message {
+            background: #d4edda;
+            margin-right: auto;
+        }
+
+        .input-area {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .input-area input {
+            flex: 1;
+            padding: 0.75rem;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            font-size: 1rem;
+        }
+
+        .input-area button {
+            padding: 0.75rem 1.5rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .input-area button:hover {
+            opacity: 0.9;
+        }
+
+        .loading {
+            color: #6c757d;
+            font-style: italic;
+            padding: 0.5rem;
+        }
+
+        .error {
+            color: #dc3545;
+            background: #f8d7da;
+            padding: 0.75rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+        }
+
+        .debug-info {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background: #e9ecef;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            overflow-x: auto;
+        }
+
+        .debug-info pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 1.5rem;
+            background: #f8f9fa;
+            color: #6c757d;
+            font-size: 0.9rem;
+            border-top: 1px solid #e9ecef;
+        }
+
+        @media (max-width: 768px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+
+            .message {
+                max-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 local-ai Server</h1>
+            <p>Offline AI assistance for Apple Silicon</p>
+        </div>
+
+        <div class="content">
+            <div class="server-status">
+                <h2>📊 Server Status</h2>
+                <div class="status-grid">
+                    <div class="status-item">
+                        <strong>Host</strong>
+                        <span id="server-host">{{ status.host or "N/A" }}</span>
+                    </div>
+                    <div class="status-item">
+                        <strong>Port</strong>
+                        <span id="server-port">{{ status.port or "N/A" }}</span>
+                    </div>
+                    <div class="status-item">
+                        <strong>PID</strong>
+                        <span id="server-pid">{{ status.pid or "N/A" }}</span>
+                    </div>
+                    <div class="status-item">
+                        <strong>Running</strong>
+                        <span id="server-running">{{ "Yes" if status.running else "No" }}</span>
+                    </div>
+                    <div class="status-item" style="grid-column: span 2;">
+                        <strong>Available Models</strong>
+                        <span id="server-models">{{ models|length }} models available</span>
+                    </div>
+                    <div class="status-health">
+                        <strong>Health Status</strong>
+                        <div id="health-status" class="status-item 
+                            {% if status.health == 'healthy' %}health-healthy
+                            {% elif status.health == 'unhealthy' %}health-unhealthy
+                            {% else %}health-unknown
+                            {% endif %}">
+                            {{ status.health or "unknown" | upper }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="model-tester">
+                <h2>🧪 Model Tester</h2>
+                <p style="margin-bottom: 1rem; color: #6c757d;">
+                    Test available models directly in your browser before integrating with clients.
+                </p>
+
+                <div class="model-selector">
+                    <label for="model-select">Select Model:</label>
+                    <select id="model-select">
+                        {% if models and models|length > 0 %}
+                        {% for model in models %}
+                        <option value="{{ model }}">{{ model }}</option>
+                        {% endfor %}
+                        {% else %}
+                        <option value="" disabled selected>Loading models...</option>
+                        {% endif %}
+                    </select>
+                </div>
+
+                <div class="chat-area" id="chat-area">
+                    <div class="message assistant-message">
+                        Welcome to local-ai! Select a model and type a message to test it.
+                    </div>
+                </div>
+
+                <div class="input-area">
+                    <input type="text" id="chat-input" placeholder="Type your message here..." 
+                           disabled="disabled" onkeypress="handleKeyPress(event)">
+                    <button id="send-button" onclick="sendMessage()" disabled="disabled">Send</button>
+                </div>
+
+                <div class="debug-info">
+                    <strong>Debug Info:</strong>
+                    <pre id="debug-info">Server: {{ status.host }}:{{ status.port }}
+Models available: {{ models|length }}
+Status: {{ status.health or 'unknown' }}</pre>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>local-ai • Offline AI for Apple Silicon • <a href="https://github.com/your-repo/local-ai" style="color: #667eea;">GitHub</a></p>
+        </div>
+    </div>
+
+    <script>
+        // Enable input when model is selected
+        const modelSelect = document.getElementById('model-select');
+        const chatInput = document.getElementById('chat-input');
+        const sendButton = document.getElementById('send-button');
+        const chatArea = document.getElementById('chat-area');
+        const debugInfo = document.getElementById('debug-info');
+
+        modelSelect.addEventListener('change', function() {
+            chatInput.disabled = false;
+            sendButton.disabled = false;
+            chatInput.focus();
+        });
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        async function sendMessage() {
+            const message = chatInput.value.trim();
+            if (!message) return;
+
+            const selectedModel = modelSelect.value;
+            
+            // Add user message to chat
+            addMessageToChat(message, 'user-message');
+            chatInput.value = '';
+            chatInput.disabled = true;
+            sendButton.disabled = true;
+
+            // Show loading indicator
+            const loadingId = addMessageToChat('Thinking...', 'loading');
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        model: selectedModel,
+                        messages: [{role: 'user', content: message}],
+                        stream: false
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                
+                // Remove loading indicator
+                removeMessage(loadingId);
+                
+                // Add assistant response
+                const assistantMessage = data.choices[0].message.content;
+                addMessageToChat(assistantMessage, 'assistant-message');
+                
+                // Update debug info
+                debugInfo.textContent += `\n\nTest completed:
+Model: ${selectedModel}
+Prompt tokens: ${data.usage.prompt_tokens}
+Completion tokens: ${data.usage.completion_tokens}
+Total tokens: ${data.usage.total_tokens}`;
+
+            } catch (error) {
+                // Remove loading indicator
+                removeMessage(loadingId);
+                
+                // Show error
+                addMessageToChat(`Error: ${error.message}`, 'error');
+                debugInfo.textContent += `\n\nError: ${error.message}`;
+                console.error('Error:', error);
+            } finally {
+                chatInput.disabled = false;
+                sendButton.disabled = false;
+                chatInput.focus();
+            }
+        }
+
+        function addMessageToChat(message, className) {
+            const messageId = 'msg-' + Date.now();
+            const messageDiv = document.createElement('div');
+            messageDiv.id = messageId;
+            messageDiv.className = `message ${className}`;
+            messageDiv.textContent = message;
+            chatArea.appendChild(messageDiv);
+            chatArea.scrollTop = chatArea.scrollHeight;
+            return messageId;
+        }
+
+        function removeMessage(messageId) {
+            const message = document.getElementById(messageId);
+            if (message) {
+                message.remove();
+            }
+        }
+
+        // Auto-scroll chat area
+        function scrollChatToBottom() {
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+
+        // Initial scroll
+        scrollChatToBottom();
+    </script>
+</body>
+</html>

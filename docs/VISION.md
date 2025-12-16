@@ -61,6 +61,16 @@ Success Criteria:
 - Clear error messages with actionable troubleshooting steps
 - All errors point to specific files, configurations, or commands to check
 
+### G5: Interactive Model Testing Interface
+"""I want a simple web interface to quickly test all available models and validate they load correctly before integrating with clients"""
+
+Success Criteria:
+- Root endpoint (`/`) displays welcome page with server status information
+- Interactive chat window with dropdown menu of available models
+- Real-time model loading and response display
+- Error handling and debugging information for failed model loads
+- Lightweight implementation (no full frontend framework required)
+
 ## Target Models
 
 Primary focus for coding assistance:

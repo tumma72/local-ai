@@ -45,23 +45,34 @@ class TestServerConfigDefaults:
 class TestRequiredFields:
     """Verify required fields are enforced across all configuration models."""
 
-    def test_model_config_requires_path(self) -> None:
-        """ModelConfig must reject instantiation without required 'path' field."""
-        with pytest.raises(ValidationError) as exc_info:
-            ModelConfig()  # type: ignore[call-arg]
+    def test_model_config_path_is_optional(self) -> None:
+        """ModelConfig should allow instantiation without 'path' field (dynamic loading)."""
+        # Should not raise an error - path is now optional
+        config = ModelConfig()
+        assert config.path is None
+        assert config.adapter_path is None
+        assert config.trust_remote_code is False
 
-        errors = exc_info.value.errors()
-        assert any(error["loc"] == ("path",) for error in errors)
-        assert any(error["type"] == "missing" for error in errors)
+    def test_model_config_accepts_path(self) -> None:
+        """ModelConfig should accept and store 'path' field when provided."""
+        config = ModelConfig(path="test-model")
+        assert config.path == "test-model"
+        assert config.adapter_path is None
+        assert config.trust_remote_code is False
 
-    def test_local_ai_settings_requires_model(self) -> None:
-        """LocalAISettings must reject instantiation without required 'model' field."""
-        with pytest.raises(ValidationError) as exc_info:
-            LocalAISettings()  # type: ignore[call-arg]
+    def test_local_ai_settings_model_is_optional(self) -> None:
+        """LocalAISettings should allow instantiation without model (dynamic loading)."""
+        # Should not raise an error - model now has default
+        settings = LocalAISettings()
+        assert settings.model.path is None  # Default ModelConfig with no path
+        assert settings.server.host == "127.0.0.1"
+        assert settings.server.port == 8080
 
-        errors = exc_info.value.errors()
-        assert any(error["loc"] == ("model",) for error in errors)
-        assert any(error["type"] == "missing" for error in errors)
+    def test_local_ai_settings_accepts_model(self) -> None:
+        """LocalAISettings should accept and store model when provided."""
+        from local_ai.config.schema import ModelConfig
+        settings = LocalAISettings(model=ModelConfig(path="test-model"))
+        assert settings.model.path == "test-model"
 
     def test_model_config_accepts_only_required_path(self) -> None:
         """ModelConfig should initialize successfully with only 'path' provided."""

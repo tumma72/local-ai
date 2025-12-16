@@ -82,8 +82,8 @@ class TestCliOverrides:
 class TestMissingModelError:
     """Verify load_config raises helpful error when model is not specified."""
 
-    def test_raises_config_error_when_model_missing(self, temp_dir: Path) -> None:
-        """load_config should raise ConfigError when model is not in TOML or CLI."""
+    def test_works_without_model_optional(self, temp_dir: Path) -> None:
+        """load_config should work when model is not specified (dynamic loading)."""
         # Create config without model section
         config_without_model = temp_dir / "no_model_config.toml"
         config_without_model.write_text("""
@@ -91,12 +91,12 @@ class TestMissingModelError:
 port = 8080
 """)
 
-        with pytest.raises(ConfigError) as exc_info:
-            load_config(config_path=config_without_model)
+        # Should not raise an error - model is now optional
+        settings = load_config(config_path=config_without_model)
 
-        # Error message should be helpful
-        error_message = str(exc_info.value)
-        assert "model" in error_message.lower()
+        # Should have default model config with no path
+        assert settings.model.path is None
+        assert settings.server.port == 8080
 
 
 class TestNoConfigFile:

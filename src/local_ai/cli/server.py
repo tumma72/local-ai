@@ -30,7 +30,14 @@ server_app = typer.Typer(
 
 @server_app.command()
 def start(
-    model: Annotated[str | None, typer.Option("--model", "-m", help="Model path or name")] = None,
+    model: Annotated[
+        str | None,
+        typer.Option(
+            "--model",
+            "-m",
+            help="Model path or name (optional - MLX Omni Server loads models dynamically)",
+        ),
+    ] = None,
     port: Annotated[int | None, typer.Option("--port", "-p", help="Server port")] = None,
     host: Annotated[str | None, typer.Option("--host", "-h", help="Server host")] = None,
     config: Annotated[Path | None, typer.Option("--config", "-c", help="Config file path")] = None,
@@ -39,17 +46,29 @@ def start(
     ] = 30.0,
     log_level: Annotated[str, typer.Option("--log-level", "-l", help="Log level")] = "INFO",
 ) -> None:
-    """Start the local-ai server."""
+    """Start the local-ai server.
+
+    Note: Model is optional because MLX Omni Server loads models dynamically.
+    Models are specified in API requests rather than at server startup.
+    """
     configure_logging(log_level=log_level, console=False)
     _logger.info(
         "CLI start command: model={}, port={}, host={}, config={}",
-        model, port, host, config,
+        model,
+        port,
+        host,
+        config,
     )
 
     settings = load_config(config_path=config, model=model, port=port, host=host)
     manager = ServerManager(settings)
 
-    console.print(f"[cyan]Starting server with model: {settings.model.path}...[/cyan]")
+    model_info = (
+        f"model: {settings.model.path}"
+        if settings.model.path
+        else "no specific model (dynamic loading)"
+    )
+    console.print(f"[cyan]Starting server with {model_info}...[/cyan]")
 
     result = manager.start(startup_timeout=startup_timeout)
 
@@ -110,7 +129,9 @@ def status(
     if server_status.running:
         _logger.debug(
             "Server status: running=True, pid={}, host={}, port={}",
-            server_status.pid, server_status.host, server_status.port,
+            server_status.pid,
+            server_status.host,
+            server_status.port,
         )
         # Color health status appropriately
         health_display = server_status.health or "unknown"
