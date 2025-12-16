@@ -21,12 +21,6 @@ from local_ai.models.schema import ModelSearchResult
 
 
 @pytest.fixture
-def cli_runner() -> CliRunner:
-    """Provide a Typer CLI test runner."""
-    return CliRunner()
-
-
-@pytest.fixture
 def mock_search_results() -> list[ModelSearchResult]:
     """Create mock search results for testing."""
     return [

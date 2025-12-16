@@ -22,19 +22,6 @@ from local_ai.benchmark.schema import (
 
 
 @pytest.fixture
-def sample_task() -> BenchmarkTask:
-    """Create a sample benchmark task for tests."""
-    return BenchmarkTask(
-        id="test-task",
-        name="Test Task",
-        system_prompt="You are a test assistant.",
-        user_prompt="Write a hello world function.",
-        difficulty=TaskDifficulty.SIMPLE,
-        expected_output_tokens=100,
-    )
-
-
-@pytest.fixture
 def mock_timing() -> TimingMetrics:
     """Create mock timing metrics."""
     return TimingMetrics(

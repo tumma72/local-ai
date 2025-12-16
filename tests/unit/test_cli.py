@@ -20,12 +20,6 @@ from local_ai.config.loader import ConfigError
 from local_ai.server.manager import ServerStatus, StartResult, StopResult
 
 
-@pytest.fixture
-def cli_runner() -> CliRunner:
-    """Provide a Typer CLI test runner."""
-    return CliRunner()
-
-
 class TestVersionCommand:
     """Verify `local-ai --version` command behavior."""
 

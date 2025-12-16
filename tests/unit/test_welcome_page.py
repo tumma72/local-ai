@@ -13,12 +13,6 @@ from local_ai.server.health import get_models
 class TestWelcomePage:
     """Test welcome page functionality."""
 
-    @pytest.fixture
-    def welcome_app(self) -> WelcomeApp:
-        """Create a welcome app for testing."""
-        settings = LocalAISettings()
-        return WelcomeApp(settings)
-
     def test_welcome_app_initialization(self, welcome_app: WelcomeApp) -> None:
         """Test that welcome app initializes correctly."""
         assert welcome_app.settings is not None

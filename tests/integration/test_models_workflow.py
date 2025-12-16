@@ -13,12 +13,6 @@ from typer.testing import CliRunner
 from local_ai.cli.main import app
 
 
-@pytest.fixture
-def cli_runner() -> CliRunner:
-    """Provide a Typer CLI test runner."""
-    return CliRunner()
-
-
 class TestModelsWorkflow:
     """Verify complete models workflow from search to download."""
 

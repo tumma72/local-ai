@@ -12,11 +12,6 @@ from local_ai.exceptions import LocalAIError
 class TestCustomServer:
     """Test custom server functionality."""
 
-    @pytest.fixture
-    def settings(self) -> LocalAISettings:
-        """Create default settings for testing."""
-        return LocalAISettings()
-
     def test_custom_server_initialization(self, settings: LocalAISettings) -> None:
         """Test that custom server initializes correctly."""
         server = CustomServer(settings)

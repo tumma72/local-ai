@@ -25,15 +25,6 @@ from local_ai.server.manager import (
 
 
 @pytest.fixture
-def settings() -> LocalAISettings:
-    """Create minimal valid settings for ServerManager."""
-    return LocalAISettings(
-        server=ServerConfig(host="127.0.0.1", port=8080),
-        model=ModelConfig(path="mlx-community/test-model"),
-    )
-
-
-@pytest.fixture
 def state_dir(temp_dir: Path) -> Path:
     """Create a temporary state directory for PID/log files."""
     state = temp_dir / "state" / "local-ai"

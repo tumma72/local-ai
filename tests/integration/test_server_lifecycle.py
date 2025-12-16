@@ -22,12 +22,6 @@ from local_ai.server.manager import ServerManager
 
 
 @pytest.fixture
-def cli_runner() -> CliRunner:
-    """Provide a Typer CLI test runner."""
-    return CliRunner()
-
-
-@pytest.fixture
 def integration_config_toml(temp_dir: Path) -> Path:
     """Create a config.toml with specific server settings for integration testing."""
     config_path = temp_dir / "config.toml"

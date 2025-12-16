@@ -13,12 +13,6 @@ from local_ai.server.health import get_models
 class TestWelcomePageEdgeCases:
     """Test welcome page edge cases and error handling."""
 
-    @pytest.fixture
-    def welcome_app(self) -> WelcomeApp:
-        """Create a welcome app for testing."""
-        settings = LocalAISettings()
-        return WelcomeApp(settings)
-
     @patch('local_ai.server.welcome.ServerManager')
     @patch('local_ai.server.welcome.get_models')
     def test_welcome_page_with_server_manager_error(
