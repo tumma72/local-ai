@@ -54,18 +54,9 @@ class WelcomeApp:
                 manager = ServerManager(self.settings)
                 status = manager.status()
 
-                # Get models from server status (already fetched by ServerManager)
-                models = []
-                if status.models and status.models != "none available":
-                    models = [m.strip() for m in status.models.split(",") if m.strip()]
-                
-                # If no models, use fallback
-                if not models:
-                    models = [
-                        "mlx-community/Orchestrator-8B-8bit",
-                        "mlx-community/Qwen3-Coder-30B-A3B-Instruct-8bit",
-                        "mlx-community/Llama-3.2-1B-Instruct-4bit",
-                    ]
+                # Don't fetch models server-side - let JavaScript do it client-side
+                # This ensures the page loads immediately without waiting for model discovery
+                models = []  # Start empty, JavaScript will populate dynamically
                 
                 return self.templates.TemplateResponse(
                     "welcome.html", {"request": request, "status": status, "models": models}
@@ -73,15 +64,11 @@ class WelcomeApp:
 
             except Exception as e:
                 _logger.error("Failed to generate welcome page: {}", e)
-                # Provide default models even on error
-                default_models = [
-                    "mlx-community/Orchestrator-8B-8bit",
-                    "mlx-community/Qwen3-Coder-30B-A3B-Instruct-8bit",
-                    "mlx-community/Llama-3.2-1B-Instruct-4bit",
-                ]
+                # Page loads even if we can't get server status
+                models = []  # Empty list, JavaScript will handle errors
                 return self.templates.TemplateResponse(
                     "welcome.html",
-                    {"request": request, "status": None, "models": default_models, "error": str(e)},
+                    {"request": request, "status": None, "models": models, "error": str(e)},
                 )
 
         @self.app.post("/api/chat")

@@ -60,9 +60,8 @@ class CustomServer:
             return mlx_app
 
         except ImportError as e:
-            message: str = f"Failed to import MLX Omni Server: {e}"
-            _logger.exception(message)
-            raise RuntimeError(message) from e
+            _logger.error("Failed to import MLX Omni Server: {}", e)
+            raise RuntimeError("MLX Omni Server not available") from e
 
         except Exception as e:
             message: str = f"Failed to create custom server: {e}"

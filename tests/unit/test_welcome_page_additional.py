@@ -35,9 +35,10 @@ class TestWelcomePageEdgeCases:
         client = TestClient(welcome_app.app)
         response = client.get("/")
         
-        # Should still work with default models
+        # Should load page with empty models (dynamic loading via JavaScript)
         assert response.status_code == 200
-        assert "Orchestrator-8B-8bit" in response.text
+        assert "Loading available models..." in response.text
+        assert "Orchestrator-8B-8bit" not in response.text
 
     @patch('local_ai.server.welcome.get_models')
     def test_welcome_page_with_get_models_exception(
@@ -51,9 +52,10 @@ class TestWelcomePageEdgeCases:
         client = TestClient(welcome_app.app)
         response = client.get("/")
         
-        # Should still work with default models
+        # Should load page with empty models (dynamic loading via JavaScript)
         assert response.status_code == 200
-        assert "Orchestrator-8B-8bit" in response.text
+        assert "Loading available models..." in response.text
+        assert "Orchestrator-8B-8bit" not in response.text
 
     @patch('local_ai.server.welcome.ServerManager')
     @patch('local_ai.server.welcome.get_models')
@@ -82,9 +84,10 @@ class TestWelcomePageEdgeCases:
         client = TestClient(welcome_app.app)
         response = client.get("/")
         
-        # Should use fallback models
+        # Should load with empty models (dynamic loading via JavaScript)
         assert response.status_code == 200
-        assert "Orchestrator-8B-8bit" in response.text
+        assert "Loading available models..." in response.text
+        assert "Orchestrator-8B-8bit" not in response.text
 
     @patch('local_ai.server.welcome.ServerManager')
     @patch('local_ai.server.welcome.get_models')
@@ -113,9 +116,10 @@ class TestWelcomePageEdgeCases:
         client = TestClient(welcome_app.app)
         response = client.get("/")
         
-        # Should use fallback models
+        # Should load with empty models (dynamic loading via JavaScript)
         assert response.status_code == 200
-        assert "Orchestrator-8B-8bit" in response.text
+        assert "Loading available models..." in response.text
+        assert "Orchestrator-8B-8bit" not in response.text
 
     @patch('local_ai.server.welcome.ServerManager')
     @patch('local_ai.server.welcome.get_models')
@@ -144,9 +148,10 @@ class TestWelcomePageEdgeCases:
         client = TestClient(welcome_app.app)
         response = client.get("/")
         
-        # Should parse single model from status
+        # Should load with empty models (dynamic loading via JavaScript)
         assert response.status_code == 200
-        assert "single-model" in response.text
+        assert "Loading available models..." in response.text
+        assert "single-model" not in response.text
 
     @patch('local_ai.server.welcome.ServerManager')
     @patch('local_ai.server.welcome.get_models')
@@ -175,11 +180,12 @@ class TestWelcomePageEdgeCases:
         client = TestClient(welcome_app.app)
         response = client.get("/")
         
-        # Should parse multiple models from status
+        # Should load with empty models (dynamic loading via JavaScript)
         assert response.status_code == 200
-        assert "model1" in response.text
-        assert "model2" in response.text
-        assert "model3" in response.text
+        assert "Loading available models..." in response.text
+        assert "model1" not in response.text
+        assert "model2" not in response.text
+        assert "model3" not in response.text
 
 
 class TestWelcomePageModelsAPI:

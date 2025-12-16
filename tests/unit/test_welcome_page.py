@@ -73,7 +73,9 @@ class TestWelcomePage:
         assert response.status_code == 200
         assert "text/html" in response.headers["content-type"]
         assert "local-ai Server" in response.text
-        assert "test-model-1" in response.text
+        # Models are now loaded dynamically via JavaScript, so they won't be in initial HTML
+        assert "test-model-1" not in response.text
+        assert "Loading available models..." in response.text
 
     @patch('local_ai.server.welcome.get_models')
     def test_welcome_page_with_empty_models(
@@ -89,8 +91,9 @@ class TestWelcomePage:
         response = client.get("/")
         
         assert response.status_code == 200
-        # Should still work with default models
-        assert "Orchestrator-8B-8bit" in response.text
+        # Should show empty model list, not hardcoded defaults
+        assert "Orchestrator-8B-8bit" not in response.text
+        assert "No models available" in response.text or len(response.text) > 0
 
     def test_models_api_endpoint_removed(self, welcome_app: WelcomeApp) -> None:
         """Test that /api/models endpoint has been removed (use /v1/models instead)."""
