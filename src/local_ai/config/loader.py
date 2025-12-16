@@ -23,11 +23,48 @@ from local_ai.logging import get_logger
 
 _logger = get_logger("Config")
 
+# Directory for locally converted MLX models
+CONVERTED_MODELS_DIR = Path.home() / ".local" / "share" / "local-ai" / "models"
+
 
 class ConfigError(Exception):
     """Configuration loading or validation error."""
 
     pass
+
+
+def _resolve_model_path(model_path: str) -> str:
+    """Resolve model path, handling local/ prefix for converted models.
+
+    Args:
+        model_path: Model identifier. Can be:
+            - local/<model-name>: Resolved to ~/.local/share/local-ai/models/<model-name>
+            - HuggingFace model ID (e.g., mlx-community/Qwen3-8B-4bit)
+            - Local file path
+
+    Returns:
+        Resolved model path (full path for local models, unchanged for others)
+
+    Raises:
+        ConfigError: If local model path doesn't exist
+    """
+    if model_path.startswith("local/"):
+        model_name = model_path[6:]  # Strip "local/" prefix
+        resolved_path = CONVERTED_MODELS_DIR / model_name
+
+        if not resolved_path.exists():
+            _logger.error("Local model not found: {}", model_path)
+            raise ConfigError(
+                f"Local model not found: {model_path}\n"
+                f"Expected at: {resolved_path}\n\n"
+                "List available models with:\n"
+                "  local-ai models list --all"
+            )
+
+        _logger.debug("Resolved local model path: {} -> {}", model_path, resolved_path)
+        return str(resolved_path)
+
+    return model_path
 
 
 def load_config(
@@ -83,12 +120,12 @@ def load_config(
             _logger.debug("No config file found, using defaults")
 
     # Merge configuration with priority: CLI > TOML > defaults
-    model_path = model or _get_nested(toml_config, ["model", "path"])
+    raw_model_path = model or _get_nested(toml_config, ["model", "path"])
     port_value = port if port is not None else _get_nested(toml_config, ["server", "port"])
     host_value = host or _get_nested(toml_config, ["server", "host"])
 
     # Validate that model is specified
-    if not model_path:
+    if not raw_model_path:
         _logger.error("Model is required but not specified")
         raise ConfigError(
             "Model is required but not specified. Provide it via:\n"
@@ -96,6 +133,9 @@ def load_config(
             "  2. [model] section in config.toml\n"
             "  3. LOCAL_AI_MODEL environment variable"
         )
+
+    # Resolve model path (handles local/ prefix for converted models)
+    model_path = _resolve_model_path(raw_model_path)
 
     # Build server config from TOML or CLI overrides
     server_dict = toml_config.get("server", {})

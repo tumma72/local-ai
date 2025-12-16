@@ -13,7 +13,12 @@ from pathlib import Path
 
 import pytest
 
-from local_ai.config.loader import ConfigError, load_config
+from local_ai.config.loader import (
+    CONVERTED_MODELS_DIR,
+    ConfigError,
+    _resolve_model_path,
+    load_config,
+)
 from local_ai.config.schema import LocalAISettings
 
 
@@ -195,3 +200,74 @@ path = "user-config-model"
         settings = load_config()
 
         assert settings.model.path == "user-config-model"
+
+
+class TestLocalModelPathResolution:
+    """Verify local model path resolution with local/ prefix."""
+
+    def test_huggingface_model_id_passes_through_unchanged(self) -> None:
+        """_resolve_model_path should return HuggingFace model IDs unchanged."""
+        model_id = "mlx-community/Qwen3-8B-4bit"
+
+        resolved = _resolve_model_path(model_id)
+
+        assert resolved == model_id
+
+    def test_local_prefix_resolves_to_converted_models_dir(
+        self, temp_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """_resolve_model_path should resolve local/ prefix to CONVERTED_MODELS_DIR."""
+        # Create mock converted models directory with a model
+        converted_dir = temp_dir / "models"
+        converted_dir.mkdir()
+        model_dir = converted_dir / "mistralai_Devstral-Small-4bit-mlx"
+        model_dir.mkdir()
+
+        # Patch CONVERTED_MODELS_DIR
+        monkeypatch.setattr(
+            "local_ai.config.loader.CONVERTED_MODELS_DIR", converted_dir
+        )
+
+        resolved = _resolve_model_path("local/mistralai_Devstral-Small-4bit-mlx")
+
+        assert resolved == str(model_dir)
+
+    def test_local_prefix_raises_error_when_model_not_found(
+        self, temp_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """_resolve_model_path should raise ConfigError when local model doesn't exist."""
+        # Create empty converted models directory
+        converted_dir = temp_dir / "models"
+        converted_dir.mkdir()
+
+        # Patch CONVERTED_MODELS_DIR
+        monkeypatch.setattr(
+            "local_ai.config.loader.CONVERTED_MODELS_DIR", converted_dir
+        )
+
+        with pytest.raises(ConfigError) as exc_info:
+            _resolve_model_path("local/nonexistent-model")
+
+        error_message = str(exc_info.value)
+        assert "local model not found" in error_message.lower()
+        assert "nonexistent-model" in error_message
+
+    def test_load_config_resolves_local_model_path(
+        self, temp_dir: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """load_config should resolve local/ model paths when specified via CLI."""
+        # Create mock converted models directory with a model
+        converted_dir = temp_dir / "models"
+        converted_dir.mkdir()
+        model_dir = converted_dir / "test-model-4bit"
+        model_dir.mkdir()
+
+        # Patch CONVERTED_MODELS_DIR and chdir to avoid finding config.toml
+        monkeypatch.setattr(
+            "local_ai.config.loader.CONVERTED_MODELS_DIR", converted_dir
+        )
+        monkeypatch.chdir(temp_dir)
+
+        settings = load_config(model="local/test-model-4bit")
+
+        assert settings.model.path == str(model_dir)

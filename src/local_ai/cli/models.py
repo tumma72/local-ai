@@ -298,6 +298,10 @@ def download(
     configure_logging(log_level=log_level, console=False)
     _logger.info("CLI models download: model_id={}, convert={}, quantize={}", model_id, convert, quantize)
 
+    # Early format check for --convert to fail fast with helpful error
+    if convert:
+        _check_model_format(model_id)
+
     # Check if already downloaded
     existing_size = get_local_model_size(model_id)
     if existing_size and not force:
@@ -335,6 +339,50 @@ def _download_mlx_model(model_id: str, force: bool) -> None:
         console.print(f"[red]✗ Download failed: {e}[/red]")
         _logger.error("Download failed: {}", e)
         raise typer.Exit(code=1) from None
+
+
+def _check_model_format(model_id: str) -> None:
+    """Check if model format is compatible with MLX conversion.
+
+    Raises:
+        typer.Exit: If model format is incompatible (GGUF, GGML, AWQ, etc.)
+    """
+    model_id_lower = model_id.lower()
+
+    # GGUF/GGML models (llama.cpp format) - cannot be converted to MLX
+    if "gguf" in model_id_lower or "ggml" in model_id_lower:
+        console.print("[red]✗ Cannot convert GGUF/GGML models to MLX format[/red]")
+        console.print(
+            "\n[yellow]GGUF models are pre-quantized for llama.cpp and cannot be converted to MLX.[/yellow]"
+        )
+        console.print("\n[bold]Options:[/bold]")
+        console.print("  1. Use an MLX-optimized version from mlx-community:")
+        console.print("     [cyan]local-ai models search devstral[/cyan]")
+        console.print("  2. Download the original safetensors model and convert it:")
+        console.print("     [cyan]local-ai models download mistralai/Devstral-Small-2505 --convert[/cyan]")
+        raise typer.Exit(code=1)
+
+    # AWQ models (different quantization format)
+    if "-awq" in model_id_lower:
+        console.print("[red]✗ Cannot convert AWQ models to MLX format[/red]")
+        console.print(
+            "\n[yellow]AWQ models use a different quantization format incompatible with MLX.[/yellow]"
+        )
+        console.print("\n[bold]Options:[/bold]")
+        console.print("  1. Use an MLX-optimized version from mlx-community")
+        console.print("  2. Download the original safetensors model and convert it")
+        raise typer.Exit(code=1)
+
+    # GPTQ models (another quantization format)
+    if "-gptq" in model_id_lower or "gptq" in model_id_lower:
+        console.print("[red]✗ Cannot convert GPTQ models to MLX format[/red]")
+        console.print(
+            "\n[yellow]GPTQ models use a different quantization format incompatible with MLX.[/yellow]"
+        )
+        console.print("\n[bold]Options:[/bold]")
+        console.print("  1. Use an MLX-optimized version from mlx-community")
+        console.print("  2. Download the original safetensors model and convert it")
+        raise typer.Exit(code=1)
 
 
 def _download_and_convert(
@@ -403,6 +451,30 @@ def _download_and_convert(
             console.print(f"  Size: {size_gb:.1f} GB")
 
     except Exception as e:
-        console.print(f"[red]✗ Conversion failed: {e}[/red]")
+        error_msg = str(e)
+
+        # Handle specific error cases with user-friendly messages
+        if "No safetensors found" in error_msg:
+            console.print("[red]✗ Cannot convert: No safetensors weights found[/red]")
+            console.print(
+                "\n[yellow]This model doesn't contain safetensors weights required for MLX conversion.[/yellow]"
+            )
+            console.print("\nPossible reasons:")
+            console.print("  • Model uses GGUF, GGML, or other incompatible format")
+            console.print("  • Model only contains PyTorch .bin files (older format)")
+            console.print("\n[bold]Options:[/bold]")
+            console.print("  1. Search for an MLX-optimized version:")
+            console.print("     [cyan]local-ai models search <model-name>[/cyan]")
+            console.print("  2. Find the original model with safetensors and convert that")
+        elif "model_type" in error_msg.lower() or "not supported" in error_msg.lower():
+            console.print(f"[red]✗ Unsupported model architecture[/red]")
+            console.print(
+                f"\n[yellow]This model architecture is not yet supported by MLX.[/yellow]"
+            )
+            console.print("\nSearch for compatible models:")
+            console.print("  [cyan]local-ai models search <model-name>[/cyan]")
+        else:
+            console.print(f"[red]✗ Conversion failed: {e}[/red]")
+
         _logger.error("Conversion failed: {}", e)
         raise typer.Exit(code=1) from None
