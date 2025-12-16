@@ -11,6 +11,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from local_ai import DEFAULT_HOST, DEFAULT_PORT
 from local_ai.logging import get_logger
 
 _logger = get_logger("Benchmark.goose")
@@ -54,8 +55,8 @@ class GooseResult:
 def run_goose_command(
     prompt: str,
     model: str,
-    host: str = "127.0.0.1",
-    port: int = 8080,
+    host: str = DEFAULT_HOST,
+    port: int = DEFAULT_PORT,
     timeout: float = 300.0,
     working_directory: Path | None = None,
 ) -> GooseResult:
@@ -74,14 +75,16 @@ def run_goose_command(
         GooseResult with output, timing, and status.
     """
     env = os.environ.copy()
-    env.update({
-        "GOOSE_PROVIDER": "openai",
-        "OPENAI_HOST": f"http://{host}:{port}/",
-        "OPENAI_API_KEY": "not-needed",
-        "GOOSE_MODEL": model,
-        "GOOSE_LEAD_MODEL": model,
-        "GOOSE_ENABLE_ROUTER": "false",
-    })
+    env.update(
+        {
+            "GOOSE_PROVIDER": "openai",
+            "OPENAI_HOST": f"http://{host}:{port}/",
+            "OPENAI_API_KEY": "not-needed",
+            "GOOSE_MODEL": model,
+            "GOOSE_LEAD_MODEL": model,
+            "GOOSE_ENABLE_ROUTER": "false",
+        }
+    )
 
     # Determine working directory
     cwd = working_directory or Path.cwd()
@@ -230,14 +233,16 @@ def run_goose_recipe(
         )
 
     env = os.environ.copy()
-    env.update({
-        "GOOSE_PROVIDER": "openai",
-        "OPENAI_HOST": f"http://{host}:{port}/",
-        "OPENAI_API_KEY": "not-needed",
-        "GOOSE_MODEL": model,
-        "GOOSE_LEAD_MODEL": model,
-        "GOOSE_ENABLE_ROUTER": "false",
-    })
+    env.update(
+        {
+            "GOOSE_PROVIDER": "openai",
+            "OPENAI_HOST": f"http://{host}:{port}/",
+            "OPENAI_API_KEY": "not-needed",
+            "GOOSE_MODEL": model,
+            "GOOSE_LEAD_MODEL": model,
+            "GOOSE_ENABLE_ROUTER": "false",
+        }
+    )
 
     # Ensure working directory exists
     working_directory = Path(working_directory)
@@ -405,9 +410,11 @@ def list_available_recipes() -> list[dict[str, str]]:
 
     if DEFAULT_RECIPE_DIR.exists():
         for yaml_file in DEFAULT_RECIPE_DIR.glob("*.yaml"):
-            recipes.append({
-                "name": yaml_file.stem,
-                "path": str(yaml_file),
-            })
+            recipes.append(
+                {
+                    "name": yaml_file.stem,
+                    "path": str(yaml_file),
+                }
+            )
 
     return recipes

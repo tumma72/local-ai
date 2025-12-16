@@ -15,6 +15,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from local_ai import DEFAULT_HOST, DEFAULT_PORT
 from local_ai.benchmark.goose_runner import get_goose_output_dir, run_goose_command
 from local_ai.benchmark.reporter import BenchmarkReporter
 from local_ai.benchmark.runner import BenchmarkRunner
@@ -73,8 +74,8 @@ def run(
     single: Annotated[  # noqa: ARG001
         bool, typer.Option("--single", "-1", help="Single run mode (default)")
     ] = False,
-    port: Annotated[int, typer.Option("--port", "-p", help="Server port")] = 8080,
-    host: Annotated[str, typer.Option("--host", help="Server host")] = "127.0.0.1",
+    port: Annotated[int, typer.Option("--port", "-p", help="Server port")] = DEFAULT_PORT,
+    host: Annotated[str, typer.Option("--host", help="Server host")] = DEFAULT_HOST,
     output_dir: Annotated[
         Path | None, typer.Option("--output-dir", "-o", help="Output directory for results")
     ] = None,
@@ -85,7 +86,10 @@ def run(
     configure_logging(log_level=log_level, console=False)
     _logger.info(
         "CLI benchmark run: model={}, task={}, requests={}, warmup={}",
-        model, task, requests, warmup,
+        model,
+        task,
+        requests,
+        warmup,
     )
 
     # Validate task exists
@@ -95,13 +99,15 @@ def run(
         console.print("Use 'local-ai benchmark tasks' to see available tasks.")
         raise typer.Exit(code=1)
 
-    console.print(Panel(
-        f"[cyan]Model:[/cyan] {model}\n"
-        f"[cyan]Task:[/cyan] {benchmark_task.name}\n"
-        f"[cyan]Server:[/cyan] {host}:{port}\n"
-        f"[cyan]Requests:[/cyan] {requests} (+ {warmup} warmup)",
-        title="[bold]Benchmark Configuration[/bold]",
-    ))
+    console.print(
+        Panel(
+            f"[cyan]Model:[/cyan] {model}\n"
+            f"[cyan]Task:[/cyan] {benchmark_task.name}\n"
+            f"[cyan]Server:[/cyan] {host}:{port}\n"
+            f"[cyan]Requests:[/cyan] {requests} (+ {warmup} warmup)",
+            title="[bold]Benchmark Configuration[/bold]",
+        )
+    )
 
     # Create runner and execute benchmark
     runner = BenchmarkRunner(host=host, port=port, model=model)
@@ -160,18 +166,14 @@ def compare(
 def goose(
     model: Annotated[str, typer.Option("--model", "-m", help="Model name or path")],
     task: Annotated[str, typer.Option("--task", "-t", help="Task ID to run")],
-    port: Annotated[int, typer.Option("--port", "-p", help="Server port")] = 8080,
-    host: Annotated[str, typer.Option("--host", help="Server host")] = "127.0.0.1",
+    port: Annotated[int, typer.Option("--port", "-p", help="Server port")] = DEFAULT_PORT,
+    host: Annotated[str, typer.Option("--host", help="Server host")] = DEFAULT_HOST,
     output_dir: Annotated[
         Path | None,
         typer.Option("--output-dir", "-o", help="Base directory for generated code"),
     ] = None,
-    timeout: Annotated[
-        float, typer.Option("--timeout", help="Request timeout in seconds")
-    ] = 300.0,
-    log_level: Annotated[
-        str, typer.Option("--log-level", "-l", help="Log level")
-    ] = "INFO",
+    timeout: Annotated[float, typer.Option("--timeout", help="Request timeout in seconds")] = 300.0,
+    log_level: Annotated[str, typer.Option("--log-level", "-l", help="Log level")] = "INFO",
 ) -> None:
     """Run task through Goose CLI for agentic comparison.
 
@@ -193,14 +195,16 @@ def goose(
     # Get structured output directory
     working_dir = get_goose_output_dir(model, task, base_dir=output_dir)
 
-    console.print(Panel(
-        f"[cyan]Model:[/cyan] {model}\n"
-        f"[cyan]Task:[/cyan] {benchmark_task.name}\n"
-        f"[cyan]Server:[/cyan] {host}:{port}\n"
-        f"[cyan]Output:[/cyan] {working_dir}\n"
-        f"[cyan]Mode:[/cyan] Goose Agentic",
-        title="[bold]Goose Benchmark[/bold]",
-    ))
+    console.print(
+        Panel(
+            f"[cyan]Model:[/cyan] {model}\n"
+            f"[cyan]Task:[/cyan] {benchmark_task.name}\n"
+            f"[cyan]Server:[/cyan] {host}:{port}\n"
+            f"[cyan]Output:[/cyan] {working_dir}\n"
+            f"[cyan]Mode:[/cyan] Goose Agentic",
+            title="[bold]Goose Benchmark[/bold]",
+        )
+    )
 
     # Construct prompt from task
     prompt = f"{benchmark_task.system_prompt}\n\n{benchmark_task.user_prompt}"
@@ -234,7 +238,5 @@ def goose(
 
     # Show output preview
     console.print()
-    output_preview = (
-        result.output[:500] + "..." if len(result.output) > 500 else result.output
-    )
+    output_preview = result.output[:500] + "..." if len(result.output) > 500 else result.output
     console.print(Panel(output_preview, title="[bold]Output Preview[/bold]"))

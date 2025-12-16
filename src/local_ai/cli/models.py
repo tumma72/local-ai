@@ -14,6 +14,7 @@ import httpx
 import typer
 from huggingface_hub import snapshot_download
 
+from local_ai import DEFAULT_HOST, DEFAULT_PORT
 from local_ai.hardware import (
     detect_hardware,
     estimate_model_params_from_name,
@@ -47,8 +48,8 @@ models_app = typer.Typer(
 
 @models_app.command("list")
 def list_models(
-    host: Annotated[str, typer.Option("--host", help="Server host")] = "127.0.0.1",
-    port: Annotated[int, typer.Option("--port", "-p", help="Server port")] = 10240,
+    host: Annotated[str, typer.Option("--host", help="Server host")] = DEFAULT_HOST,
+    port: Annotated[int, typer.Option("--port", "-p", help="Server port")] = DEFAULT_PORT,
     all_models: Annotated[
         bool, typer.Option("--all", "-a", help="Show all local models (cached + converted)")
     ] = False,
@@ -128,7 +129,7 @@ def list_models(
         console.print()
         table2 = create_local_models_table(converted, title="Converted Models")
         console.print(table2)
-        console.print(f"\n[dim]Location: ~/.local/share/local-ai/models/[/dim]")
+        console.print("\n[dim]Location: ~/.local/share/local-ai/models/[/dim]")
 
 
 @models_app.command()
@@ -143,9 +144,7 @@ def search(
     sort: Annotated[
         str, typer.Option("--sort", "-s", help="Sort by: downloads, likes, trending_score")
     ] = "downloads",
-    log_level: Annotated[
-        str, typer.Option("--log-level", "-l", help="Log level")
-    ] = "INFO",
+    log_level: Annotated[str, typer.Option("--log-level", "-l", help="Log level")] = "INFO",
 ) -> None:
     """Search HuggingFace for models.
 
@@ -162,7 +161,13 @@ def search(
     _logger.info("CLI models search: query={}, top={}, limit={}, sort={}", query, top, limit, sort)
 
     # Validate sort option
-    valid_sorts: list[SortOption] = ["downloads", "likes", "trending_score", "created_at", "last_modified"]
+    valid_sorts: list[SortOption] = [
+        "downloads",
+        "likes",
+        "trending_score",
+        "created_at",
+        "last_modified",
+    ]
     if sort not in valid_sorts:
         console.print(f"[red]✗ Invalid sort option: {sort}[/red]")
         console.print(f"Valid options: {', '.join(valid_sorts)}")
@@ -208,15 +213,20 @@ def search(
         console.print(table2)
 
     total = len(results.top_models) + len(results.mlx_models)
-    console.print(f"\n[dim]Showing {total} results ({len(results.top_models)} top + {len(results.mlx_models)} MLX-optimized)[/dim]")
+    console.print(
+        f"\n[dim]Showing {total} results ({len(results.top_models)} top + {len(results.mlx_models)} MLX-optimized)[/dim]"
+    )
 
 
 @models_app.command()
 def info(
-    model_id: Annotated[str, typer.Argument(help="Full model ID (e.g., mlx-community/Qwen3-8B-4bit or local/model-name)")],
-    log_level: Annotated[
-        str, typer.Option("--log-level", "-l", help="Log level")
-    ] = "INFO",
+    model_id: Annotated[
+        str,
+        typer.Argument(
+            help="Full model ID (e.g., mlx-community/Qwen3-8B-4bit or local/model-name)"
+        ),
+    ],
+    log_level: Annotated[str, typer.Option("--log-level", "-l", help="Log level")] = "INFO",
 ) -> None:
     """Get detailed information about a specific model.
 
@@ -268,12 +278,15 @@ def info(
 
 @models_app.command()
 def download(
-    model_id: Annotated[str, typer.Argument(help="Full model ID (e.g., mlx-community/Qwen3-8B-4bit)")],
+    model_id: Annotated[
+        str, typer.Argument(help="Full model ID (e.g., mlx-community/Qwen3-8B-4bit)")
+    ],
     convert: Annotated[
         bool, typer.Option("--convert", "-c", help="Convert to MLX format (for non-MLX models)")
     ] = False,
     quantize: Annotated[
-        str | None, typer.Option("--quantize", "-q", help="Quantization level: 4bit, 6bit, 8bit, or 'auto'")
+        str | None,
+        typer.Option("--quantize", "-q", help="Quantization level: 4bit, 6bit, 8bit, or 'auto'"),
     ] = None,
     output_dir: Annotated[
         str | None, typer.Option("--output", "-o", help="Output directory for converted models")
@@ -281,9 +294,7 @@ def download(
     force: Annotated[
         bool, typer.Option("--force", "-f", help="Force re-download even if cached")
     ] = False,
-    log_level: Annotated[
-        str, typer.Option("--log-level", "-l", help="Log level")
-    ] = "INFO",
+    log_level: Annotated[str, typer.Option("--log-level", "-l", help="Log level")] = "INFO",
 ) -> None:
     """Download a model from HuggingFace.
 
@@ -296,7 +307,9 @@ def download(
         local-ai models download Qwen/Qwen3-30B --convert --quantize 4bit
     """
     configure_logging(log_level=log_level, console=False)
-    _logger.info("CLI models download: model_id={}, convert={}, quantize={}", model_id, convert, quantize)
+    _logger.info(
+        "CLI models download: model_id={}, convert={}, quantize={}", model_id, convert, quantize
+    )
 
     # Early format check for --convert to fail fast with helpful error
     if convert:
@@ -308,7 +321,7 @@ def download(
         size_gb = existing_size / (1024**3)
         console.print(f"[green]✓[/green] Model already downloaded: {model_id}")
         console.print(f"  Size: {size_gb:.1f} GB")
-        console.print(f"\n[dim]Use --force to re-download[/dim]")
+        console.print("\n[dim]Use --force to re-download[/dim]")
         return
 
     # If converting, determine quantization
@@ -359,7 +372,9 @@ def _check_model_format(model_id: str) -> None:
         console.print("  1. Use an MLX-optimized version from mlx-community:")
         console.print("     [cyan]local-ai models search devstral[/cyan]")
         console.print("  2. Download the original safetensors model and convert it:")
-        console.print("     [cyan]local-ai models download mistralai/Devstral-Small-2505 --convert[/cyan]")
+        console.print(
+            "     [cyan]local-ai models download mistralai/Devstral-Small-2505 --convert[/cyan]"
+        )
         raise typer.Exit(code=1)
 
     # AWQ models (different quantization format)
@@ -404,11 +419,15 @@ def _download_and_convert(
                 recommended = get_recommended_quantization(params, hw)
                 if recommended == "too_large":
                     max_size = get_max_model_size_gb(hw)
-                    console.print(f"[red]✗ Model too large for available memory (~{max_size:.0f} GB max)[/red]")
+                    console.print(
+                        f"[red]✗ Model too large for available memory (~{max_size:.0f} GB max)[/red]"
+                    )
                     console.print("\nTry a smaller model or lower quantization.")
                     raise typer.Exit(code=1)
                 q_bits = int(recommended.replace("bit", ""))
-                console.print(f"[cyan]Auto-detected:[/cyan] {params:.0f}B params → {recommended} recommended")
+                console.print(
+                    f"[cyan]Auto-detected:[/cyan] {params:.0f}B params → {recommended} recommended"
+                )
             else:
                 console.print("[yellow]⚠ Could not detect model size, using 4bit default[/yellow]")
                 q_bits = 4
@@ -467,10 +486,8 @@ def _download_and_convert(
             console.print("     [cyan]local-ai models search <model-name>[/cyan]")
             console.print("  2. Find the original model with safetensors and convert that")
         elif "model_type" in error_msg.lower() or "not supported" in error_msg.lower():
-            console.print(f"[red]✗ Unsupported model architecture[/red]")
-            console.print(
-                f"\n[yellow]This model architecture is not yet supported by MLX.[/yellow]"
-            )
+            console.print("[red]✗ Unsupported model architecture[/red]")
+            console.print("\n[yellow]This model architecture is not yet supported by MLX.[/yellow]")
             console.print("\nSearch for compatible models:")
             console.print("  [cyan]local-ai models search <model-name>[/cyan]")
         else:

@@ -4,9 +4,10 @@ Executes multi-turn agentic workflows and validates results through tests.
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
+from local_ai import DEFAULT_HOST, DEFAULT_PORT
 from local_ai.benchmark.goose_runner import get_goose_output_dir, get_recipe_path, run_goose_recipe
 from local_ai.benchmark.reporter import BenchmarkReporter
 from local_ai.benchmark.schema import (
@@ -28,8 +29,8 @@ def run_agentic_benchmark(
     model: str,
     task: BenchmarkTask,
     recipe_name: str | None = None,
-    host: str = "127.0.0.1",
-    port: int = 10240,
+    host: str = DEFAULT_HOST,
+    port: int = DEFAULT_PORT,
     timeout: float = 600.0,
     max_turns: int = 20,
     output_dir: Path | None = None,
@@ -51,7 +52,7 @@ def run_agentic_benchmark(
     Returns:
         BenchmarkResult with agentic execution details and test results.
     """
-    started_at = datetime.now(timezone.utc)
+    started_at = datetime.now(UTC)
     benchmark_id = f"agentic_{uuid.uuid4().hex[:8]}"
 
     # Determine recipe to use
@@ -90,7 +91,7 @@ def run_agentic_benchmark(
         recipe_params={"work_dir": str(working_dir)},
     )
 
-    completed_at = datetime.now(timezone.utc)
+    completed_at = datetime.now(UTC)
     total_time_ms = result.elapsed_ms
 
     # Create single run result (agentic runs are single runs)

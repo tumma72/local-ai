@@ -6,6 +6,7 @@ Coordinates benchmark runs, collects metrics, and aggregates results.
 import uuid
 from datetime import datetime
 
+from local_ai import DEFAULT_HOST, DEFAULT_PORT
 from local_ai.benchmark.metrics import MemoryTracker, measure_streaming_request
 from local_ai.benchmark.schema import (
     BenchmarkResult,
@@ -25,8 +26,8 @@ class BenchmarkRunner:
 
     def __init__(
         self,
-        host: str = "127.0.0.1",
-        port: int = 8080,
+        host: str = DEFAULT_HOST,
+        port: int = DEFAULT_PORT,
         model: str = "",
     ) -> None:
         """Initialize benchmark runner.
@@ -63,7 +64,9 @@ class BenchmarkRunner:
 
         _logger.info(
             "Starting benchmark '{}' with {} runs (+{} warmup)",
-            task.id, num_requests, warmup_requests,
+            task.id,
+            num_requests,
+            warmup_requests,
         )
 
         # Prepare messages for the task
@@ -121,7 +124,9 @@ class BenchmarkRunner:
 
                 _logger.info(
                     "Run {} complete: {:.1f} tok/s, TTFT={:.0f}ms",
-                    i + 1, throughput.tokens_per_second, timing.ttft_ms,
+                    i + 1,
+                    throughput.tokens_per_second,
+                    timing.ttft_ms,
                 )
 
             except Exception as e:

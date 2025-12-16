@@ -8,10 +8,6 @@ from local_ai.logging import get_logger
 
 _logger = get_logger("Health")
 
-# Default server settings for status/stop operations
-DEFAULT_HOST = "127.0.0.1"
-DEFAULT_PORT = 8080
-
 
 def get_models(host: str, port: int, timeout: float = 5.0) -> list[str]:
     """Query server for loaded models.
@@ -67,9 +63,7 @@ def check_health(host: str, port: int, timeout: float = 5.0) -> str:
         return "unknown"
 
 
-def wait_for_health(
-    host: str, port: int, timeout: float = 60.0, interval: float = 1.0
-) -> bool:
+def wait_for_health(host: str, port: int, timeout: float = 60.0, interval: float = 1.0) -> bool:
     """Wait for server to become healthy.
 
     Args:
@@ -91,14 +85,16 @@ def wait_for_health(
             elapsed = time.monotonic() - start
             _logger.info(
                 "Server became healthy after {:.1f}s ({} checks)",
-                elapsed, check_count,
+                elapsed,
+                check_count,
             )
             return True
         elapsed = time.monotonic() - start
         if elapsed >= timeout:
             _logger.warning(
                 "Server did not become healthy within {}s ({} checks)",
-                timeout, check_count,
+                timeout,
+                check_count,
             )
             return False
         time.sleep(interval)

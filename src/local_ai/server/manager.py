@@ -11,14 +11,10 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from local_ai import DEFAULT_HOST, DEFAULT_PORT
 from local_ai.config.schema import LocalAISettings
 from local_ai.logging import get_logger
-from local_ai.server.health import (
-    DEFAULT_HOST,
-    DEFAULT_PORT,
-    check_health,
-    get_models,
-)
+from local_ai.server.health import check_health, get_models
 
 
 @dataclass
@@ -66,20 +62,46 @@ class ServerManager:
         Args:
             settings: LocalAI configuration settings. Required for start().
             state_dir: Directory for PID and log files. Defaults to ~/.local/state/local-ai/
-            host: Server host for status checks. Defaults to 127.0.0.1.
-            port: Server port for status checks. Defaults to 8080.
+            host: Server host for status checks. Overrides settings if provided.
+            port: Server port for status checks. Overrides settings if provided.
 
         Note:
             For stop() and status(), settings is not required - only host/port
             are needed for health checks.
+
+            Priority order for host/port:
+            1. Explicit host/port parameters (highest priority)
+            2. Settings from configuration
+            3. Default constants (lowest priority)
         """
         self._settings = settings
-        self._host = host or (settings.server.host if settings else DEFAULT_HOST)
-        self._port = port or (settings.server.port if settings else DEFAULT_PORT)
+        # Initialize host and port with correct priority:
+        # 1. Explicit parameters override everything
+        # 2. Settings override defaults
+        # 3. Default constants as fallback
+        if host is not None:
+            self._host = host
+        elif settings is not None:
+            self._host = settings.server.host
+        else:
+            self._host = DEFAULT_HOST
+
+        if port is not None:
+            self._port = port
+        elif settings is not None:
+            self._port = settings.server.port
+        else:
+            self._port = DEFAULT_PORT
+
         self._state_dir = state_dir or Path.home() / ".local" / "state" / "local-ai"
         self._state_dir.mkdir(parents=True, exist_ok=True)
         self._logger = get_logger("ServerManager")
-        self._logger.debug("Initialized with state_dir={}", self._state_dir)
+        self._logger.debug(
+            "Initialized with state_dir={}, host={}, port={}",
+            self._state_dir,
+            self._host,
+            self._port,
+        )
 
     @property
     def _pid_file(self) -> Path:
@@ -205,7 +227,8 @@ class ServerManager:
                 log_tail = self._get_last_log_lines(30)
                 self._logger.error(
                     "Server process exited with code {} after {:.1f}s",
-                    process.returncode, elapsed,
+                    process.returncode,
+                    elapsed,
                 )
                 error_msg = f"Server process exited with code {process.returncode}"
                 if log_tail and ("Error" in log_tail or "error" in log_tail):
@@ -217,7 +240,8 @@ class ServerManager:
             if health == "healthy":
                 self._logger.info(
                     "Server started successfully with PID {} (healthy after {:.1f}s)",
-                    process.pid, elapsed,
+                    process.pid,
+                    elapsed,
                 )
                 return StartResult(success=True, pid=process.pid)
 
@@ -307,7 +331,11 @@ class ServerManager:
 
         self._logger.debug(
             "Server running: PID={}, host={}, port={}, health={}, available_models={}",
-            pid, self._host, self._port, health, available_models,
+            pid,
+            self._host,
+            self._port,
+            health,
+            available_models,
         )
         return ServerStatus(
             running=True,
