@@ -1,7 +1,7 @@
 """Pydantic configuration schema models for LocalAI settings.
 
-Defines configuration models for server, model, generation parameters,
-and complete LocalAI settings with validation constraints.
+Defines configuration models for server and model settings.
+Generation parameters are client-side concerns (configured in Zed, Claude Code, etc.).
 """
 
 from pathlib import Path
@@ -20,7 +20,7 @@ class ServerConfig(BaseModel):
 
 class ModelConfig(BaseModel):
     """Model configuration settings.
-    
+
     Note: path is optional because MLX Omni Server loads models dynamically.
     Models are specified in API requests rather than at server startup.
     """
@@ -30,35 +30,18 @@ class ModelConfig(BaseModel):
     trust_remote_code: bool = False
 
 
-class GenerationConfig(BaseModel):
-    """Generation configuration settings for model inference."""
-
-    max_tokens: int = Field(4096, ge=1, le=32768)
-    temperature: float = Field(0.0, ge=0.0, le=2.0)
-    top_p: float = Field(1.0, ge=0.0, le=1.0)
-    top_k: int = Field(0, ge=0)
-    min_p: float = Field(0.0, ge=0.0, le=1.0)
-
-
 def _default_server_config() -> ServerConfig:
     """Create default ServerConfig instance."""
     return ServerConfig(host="127.0.0.1", port=8080, log_level="INFO")
 
 
-def _default_generation_config() -> GenerationConfig:
-    """Create default GenerationConfig instance."""
-    return GenerationConfig(
-        max_tokens=4096,
-        temperature=0.0,
-        top_p=1.0,
-        top_k=0,
-        min_p=0.0,
-    )
-
-
 class LocalAISettings(BaseModel):
-    """Complete LocalAI configuration settings."""
+    """Complete LocalAI configuration settings.
+
+    Note: Generation parameters (temperature, max_tokens, etc.) are not included
+    here as they are client-side concerns. Configure them in your client
+    (Zed, Claude Code, etc.) or per-request via the API.
+    """
 
     server: ServerConfig = Field(default_factory=_default_server_config)
     model: ModelConfig = Field(default_factory=ModelConfig)
-    generation: GenerationConfig = Field(default_factory=_default_generation_config)

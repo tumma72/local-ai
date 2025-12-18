@@ -56,7 +56,11 @@
       "Bash(gh pr edit 94 --repo madroidmaq/mlx-omni-server --body \"$(cat <<''EOF''\n## Summary\n\n- Fixes #93 - 500 error when using tool calling with Qwen3 MoE models\n\nThis PR addresses two related issues in the tool calling flow:\n\n### Issue 1: ToolCall Type Mismatch (openai_adapter.py)\n\n**Problem:** The tool parsers (e.g., `Qwen3MoeToolParser`) return `core_types.ToolCall` with `arguments` as a `Dict`, but `ChatMessage.tool_calls` expects `schema.ToolCall` with `function.arguments` as a JSON string.\n\nThis type mismatch caused a Pydantic validation error and 500 Internal Server Error when using function calling.\n\n**Solution:** Added a `_convert_tool_calls()` helper function that uses the existing `ToolCall.from_llama_output()` method to convert the internal format to OpenAI-compatible format.\n\n### Issue 2: JSON Arguments for Jinja Template (chat_template.py)\n\n**Problem:** In multi-turn conversations, the Qwen3 chat template expects `tool_call.arguments` to be a dict for `|items` Jinja iteration, but the OpenAI API format sends arguments as JSON strings. This caused \"Can only get item pairs from a mapping\" errors.\n\n**Solution:** Convert Pydantic ToolCall models to dicts using `model_dump()` and parse JSON string arguments into dicts before template rendering.\n\n## Testing\n\nTested with:\n- Qwen3-Coder-30B-A3B-Instruct model\n- Multi-turn agentic workflows using Goose CLI\n- Tool calls including shell commands and file operations\n\nBoth single-shot tool calls and multi-turn conversations now work correctly.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\nEOF\n)\")",
       "Bash(timeout 300 uv run:*)",
       "Bash(sysctl:*)",
-      "Bash(system_profiler:*)"
+      "Bash(system_profiler:*)",
+      "Bash(source .venv/bin/activate)",
+      "Bash(ruff check:*)",
+      "Bash(wc:*)",
+      "Bash(sort:*)"
     ]
   }
 }

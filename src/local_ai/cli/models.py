@@ -12,7 +12,6 @@ from typing import Annotated
 
 import httpx
 import typer
-from huggingface_hub import snapshot_download
 
 from local_ai import DEFAULT_HOST, DEFAULT_PORT
 from local_ai.hardware import (
@@ -277,6 +276,252 @@ def info(
 
 
 @models_app.command()
+def recommend(
+    model_id: Annotated[
+        str,
+        typer.Argument(help="Full model ID (e.g., mlx-community/DeepSeek-R1-Qwen3-8B-4bit)"),
+    ],
+    output_format: Annotated[
+        str,
+        typer.Option("--format", "-f", help="Output format: text, json, zed"),
+    ] = "text",
+    verbose: Annotated[
+        bool,
+        typer.Option("--verbose", "-v", help="Show detailed analysis"),
+    ] = False,
+    log_level: Annotated[str, typer.Option("--log-level", "-l", help="Log level")] = "INFO",
+) -> None:
+    """Get recommended client settings for a model.
+
+    Analyzes the model and your hardware to recommend optimal generation settings
+    for use in clients like Zed, Claude Code, or the API.
+
+    Examples:
+        local-ai models recommend mlx-community/DeepSeek-R1-Qwen3-8B-4bit
+        local-ai models recommend mlx-community/Devstral-Small-4bit --format json
+        local-ai models recommend mlx-community/Qwen3-8B-4bit --format zed
+    """
+    import json as json_module
+
+    from rich.panel import Panel
+    from rich.table import Table
+
+    from local_ai.models.recommender import recommend_settings
+
+    configure_logging(log_level=log_level, console=False)
+    _logger.info("CLI models recommend: model_id={}, format={}", model_id, output_format)
+
+    # Validate format
+    if output_format not in ("text", "json", "zed"):
+        console.print(f"[red]✗ Invalid format: {output_format}[/red]")
+        console.print("Valid formats: text, json, zed")
+        raise typer.Exit(code=1)
+
+    # Fetch model info
+    with console.status("[bold green]Analyzing model...[/bold green]"):
+        model_info = _fetch_model_analysis(model_id)
+        if model_info is None:
+            console.print(f"[red]✗ Model not found: {model_id}[/red]")
+            raise typer.Exit(code=1)
+
+        model_size_gb, context_length = model_info
+
+        # Detect hardware
+        try:
+            hardware = detect_hardware()
+        except RuntimeError:
+            hardware = None
+            if output_format == "text":
+                console.print("[yellow]⚠ Not running on Apple Silicon[/yellow]")
+
+        # Generate recommendation
+        recommendation = recommend_settings(
+            model_id=model_id,
+            model_size_gb=model_size_gb,
+            context_length=context_length,
+            hardware=hardware,
+        )
+
+    # Output based on format
+    if output_format == "json":
+        output = {
+            "model": {
+                "id": recommendation.model_id,
+                "type": recommendation.model_type,
+                "size_gb": recommendation.model_size_gb,
+                "context_length": recommendation.context_length,
+            },
+            "hardware": {
+                "chip": hardware.chip_name if hardware else None,
+                "memory_gb": hardware.memory_gb if hardware else None,
+                "available_gb": get_max_model_size_gb(hardware) if hardware else None,
+            } if hardware else None,
+            "recommendation": {
+                "temperature": recommendation.temperature,
+                "max_tokens": recommendation.max_tokens,
+                "top_p": recommendation.top_p,
+                "fits": recommendation.fits_in_memory,
+            },
+        }
+        console.print(json_module.dumps(output, indent=2))
+
+    elif output_format == "zed":
+        # Generate Zed settings.json snippet
+        output = {
+            "language_models": {
+                "openai": {
+                    "api_url": "http://localhost:8080/v1",
+                    "available_models": [
+                        {
+                            "name": recommendation.model_id,
+                            "display_name": _get_display_name(recommendation.model_id),
+                            "max_tokens": recommendation.max_tokens,
+                            "default_temperature": recommendation.temperature,
+                        }
+                    ],
+                }
+            }
+        }
+        console.print("[bold cyan]Add to your Zed settings.json:[/bold cyan]\n")
+        console.print(json_module.dumps(output, indent=2))
+
+    else:
+        # Text format with rich formatting
+        table = Table(show_header=False, box=None, padding=(0, 2))
+        table.add_column("Setting", style="cyan", no_wrap=True)
+        table.add_column("Value", style="white")
+        table.add_column("Reason", style="dim")
+
+        # Model info section
+        table.add_row("[bold]Model[/bold]", "", "")
+        table.add_row("  ID", recommendation.model_id, "")
+        table.add_row("  Type", recommendation.model_type, "")
+        if recommendation.model_size_gb:
+            table.add_row("  Size", f"{recommendation.model_size_gb:.1f} GB", "")
+        if recommendation.context_length:
+            table.add_row("  Context", f"{recommendation.context_length:,} tokens", "")
+
+        # Hardware section
+        if hardware:
+            table.add_row("", "", "")
+            table.add_row("[bold]Hardware[/bold]", "", "")
+            table.add_row("  Chip", hardware.chip_name, "")
+            table.add_row("  Memory", f"{hardware.memory_gb:.0f} GB", "")
+            max_size = get_max_model_size_gb(hardware)
+            table.add_row("  Available", f"{max_size:.0f} GB", "(for models)")
+
+            if recommendation.fits_in_memory:
+                table.add_row(
+                    "  Status",
+                    f"[green]✓ Fits[/green] ({recommendation.memory_headroom_gb:.0f} GB headroom)",
+                    "",
+                )
+            else:
+                table.add_row(
+                    "  Status",
+                    f"[red]✗ Too large[/red] ({-recommendation.memory_headroom_gb:.0f} GB over)",
+                    "",
+                )
+
+        # Recommended settings section
+        table.add_row("", "", "")
+        table.add_row("[bold]Recommended Settings[/bold]", "", "")
+        table.add_row(
+            "  temperature",
+            str(recommendation.temperature),
+            recommendation.temperature_reason,
+        )
+        table.add_row(
+            "  max_tokens",
+            str(recommendation.max_tokens),
+            recommendation.max_tokens_reason,
+        )
+        table.add_row("  top_p", str(recommendation.top_p), "Standard value")
+
+        panel = Panel(
+            table,
+            title="[bold cyan]Model Recommendation[/bold cyan]",
+            border_style="cyan",
+        )
+        console.print()
+        console.print(panel)
+
+        # Usage tip
+        console.print()
+        console.print(f"[dim]For Zed config: local-ai models recommend {model_id} --format zed[/dim]")
+
+
+def _fetch_model_analysis(model_id: str) -> tuple[float | None, int | None] | None:
+    """Fetch model size and context length from HuggingFace.
+
+    Returns:
+        Tuple of (size_gb, context_length) or None if not found.
+    """
+    from local_ai.models.huggingface import get_model_info
+
+    try:
+        # Get model info for size
+        model = get_model_info(model_id)
+        if model is None:
+            return None
+
+        size_gb = model.size_bytes / (1024**3) if model.size_bytes else None
+
+        # Fetch context length from config.json
+        context_length = _fetch_context_length(model_id)
+
+        return size_gb, context_length
+
+    except Exception as e:
+        _logger.error("Failed to fetch model analysis: {}", e)
+        return None
+
+
+def _fetch_context_length(model_id: str) -> int | None:
+    """Fetch context length from model's config.json on HuggingFace."""
+    import json as json_module
+
+    from huggingface_hub import hf_hub_download
+
+    try:
+        config_path = hf_hub_download(
+            repo_id=model_id,
+            filename="config.json",
+            local_files_only=False,
+        )
+        with open(config_path) as f:
+            config = json_module.load(f)
+
+        # Try common keys for context length
+        context_length = (
+            config.get("max_position_embeddings")
+            or config.get("max_seq_len")
+            or config.get("seq_length")
+            or config.get("n_positions")
+            or config.get("max_sequence_length")
+        )
+        return context_length
+
+    except Exception as e:
+        _logger.debug("Could not fetch context length: {}", e)
+        return None
+
+
+def _get_display_name(model_id: str) -> str:
+    """Generate a display name for the model."""
+    # Extract model name from ID
+    name = model_id.split("/")[-1] if "/" in model_id else model_id
+
+    # Clean up common suffixes
+    name = name.replace("-4bit", "")
+    name = name.replace("-8bit", "")
+    name = name.replace("-mlx", "")
+
+    # Add "(local)" suffix
+    return f"{name} (local)"
+
+
+@models_app.command()
 def download(
     model_id: Annotated[
         str, typer.Argument(help="Full model ID (e.g., mlx-community/Qwen3-8B-4bit)")
@@ -333,6 +578,8 @@ def download(
 
 def _download_mlx_model(model_id: str, force: bool) -> None:
     """Download an MLX-optimized model."""
+    from huggingface_hub import snapshot_download
+
     console.print(f"[bold]Downloading {model_id}...[/bold]\n")
 
     try:

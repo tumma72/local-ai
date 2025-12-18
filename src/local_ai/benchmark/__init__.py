@@ -3,6 +3,10 @@
 Provides tools for benchmarking LLM model performance.
 """
 
+from local_ai.benchmark.agentic_runner import (
+    run_agentic_benchmark,
+    run_and_save_agentic_benchmark,
+)
 from local_ai.benchmark.goose_runner import (
     GooseResult,
     get_goose_output_dir,
@@ -32,10 +36,6 @@ from local_ai.benchmark.tasks import (
     load_task,
 )
 from local_ai.benchmark.test_validator import run_pytest, validate_tdd_output
-from local_ai.benchmark.agentic_runner import (
-    run_agentic_benchmark,
-    run_and_save_agentic_benchmark,
-)
 
 __all__ = [
     "BenchmarkMode",

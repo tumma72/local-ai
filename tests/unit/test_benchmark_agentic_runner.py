@@ -23,12 +23,8 @@ from local_ai.benchmark.goose_runner import GooseResult
 from local_ai.benchmark.schema import (
     BenchmarkMode,
     BenchmarkTask,
-    MemoryMetrics,
-    SingleRunResult,
     TaskDifficulty,
     TestResults,
-    ThroughputMetrics,
-    TimingMetrics,
 )
 
 
@@ -63,12 +59,12 @@ class TestAgenticBenchmarkRunner:
         # Mock recipe path
         mock_recipe_path = Path("/fake/recipes/test_agentic_task.yaml")
         mock_get_recipe_path.return_value = mock_recipe_path
-        
+
         # Mock working directory
         with tempfile.TemporaryDirectory() as temp_dir:
             working_dir = Path(temp_dir) / "working"
             mock_get_goose_output_dir.return_value = working_dir
-            
+
             # Mock Goose recipe result
             mock_goose_result = GooseResult(
                 output="def fibonacci(n):\n    if n <= 1:\n        return n\n    return fibonacci(n-1) + fibonacci(n-2)",
@@ -81,7 +77,7 @@ class TestAgenticBenchmarkRunner:
                 files_created=[],
             )
             mock_run_goose_recipe.return_value = mock_goose_result
-            
+
             # Mock test validation
             mock_test_results = TestResults(
                 passed=3,
@@ -92,7 +88,7 @@ class TestAgenticBenchmarkRunner:
                 output="All tests passed",
             )
             mock_validate_tdd_output.return_value = mock_test_results
-            
+
             # Run the benchmark
             result = run_agentic_benchmark(
                 model="test-model",
@@ -104,25 +100,25 @@ class TestAgenticBenchmarkRunner:
                 output_dir=Path(temp_dir),
                 run_tests=True,
             )
-            
+
             # Verify result structure
             assert result.benchmark_id.startswith("agentic_")
             assert result.model == "test-model"
             assert result.task == sample_task
             assert result.mode == BenchmarkMode.AGENTIC
             assert len(result.runs) == 1
-            
+
             # Verify run details
             run = result.runs[0]
             assert run.error is None  # Success is indicated by no error
             assert run.timing.total_latency_ms == 15000.0
             assert run.timing.generation_time_ms == 15000.0
             assert run.raw_output == mock_goose_result.output
-            
+
             # Verify test results
             assert result.test_results == mock_test_results
             assert result.working_directory == str(working_dir)
-            
+
             # Verify timestamps
             assert isinstance(result.started_at, datetime)
             assert isinstance(result.completed_at, datetime)
@@ -141,12 +137,12 @@ class TestAgenticBenchmarkRunner:
         # Mock recipe path
         mock_recipe_path = Path("/fake/recipes/test_agentic_task.yaml")
         mock_get_recipe_path.return_value = mock_recipe_path
-        
+
         # Mock working directory
         with tempfile.TemporaryDirectory() as temp_dir:
             working_dir = Path(temp_dir) / "working"
             mock_get_goose_output_dir.return_value = working_dir
-            
+
             # Mock Goose recipe failure
             mock_goose_result = GooseResult(
                 success=False,
@@ -156,7 +152,7 @@ class TestAgenticBenchmarkRunner:
                 error="Recipe execution failed: timeout",
             )
             mock_run_goose_recipe.return_value = mock_goose_result
-            
+
             # Run the benchmark
             result = run_agentic_benchmark(
                 model="test-model",
@@ -168,16 +164,16 @@ class TestAgenticBenchmarkRunner:
                 output_dir=Path(temp_dir),
                 run_tests=True,
             )
-            
+
             # Verify failure handling
             assert result.benchmark_id.startswith("agentic_")
             assert len(result.runs) == 1
-            
+
             run = result.runs[0]
             assert run.error is not None
             assert run.error == "Recipe execution failed: timeout"
             assert run.raw_output == ""
-            
+
             # Test validation should not run on failure
             assert result.test_results is None
 
@@ -197,12 +193,12 @@ class TestAgenticBenchmarkRunner:
         # Mock recipe path
         mock_recipe_path = Path("/fake/recipes/test_agentic_task.yaml")
         mock_get_recipe_path.return_value = mock_recipe_path
-        
+
         # Mock working directory
         with tempfile.TemporaryDirectory() as temp_dir:
             working_dir = Path(temp_dir) / "working"
             mock_get_goose_output_dir.return_value = working_dir
-            
+
             # Mock successful Goose execution
             mock_goose_result = GooseResult(
                 success=True,
@@ -212,7 +208,7 @@ class TestAgenticBenchmarkRunner:
                 error=None,
             )
             mock_run_goose_recipe.return_value = mock_goose_result
-            
+
             # Run without tests
             result = run_agentic_benchmark(
                 model="test-model",
@@ -224,7 +220,7 @@ class TestAgenticBenchmarkRunner:
                 output_dir=Path(temp_dir),
                 run_tests=False,  # Disable test validation
             )
-            
+
             # Verify test validation was not called
             mock_validate_tdd_output.assert_not_called()
             assert result.test_results is None
@@ -247,12 +243,12 @@ class TestAgenticBenchmarkRunner:
         # Mock recipe path
         mock_recipe_path = Path("/fake/recipes/test_agentic_task.yaml")
         mock_get_recipe_path.return_value = mock_recipe_path
-        
+
         # Mock working directory
         with tempfile.TemporaryDirectory() as temp_dir:
             working_dir = Path(temp_dir) / "working"
             mock_get_goose_output_dir.return_value = working_dir
-            
+
             # Mock successful execution
             mock_goose_result = GooseResult(
                 success=True,
@@ -262,7 +258,7 @@ class TestAgenticBenchmarkRunner:
                 error=None,
             )
             mock_run_goose_recipe.return_value = mock_goose_result
-            
+
             # Mock test results
             mock_test_results = TestResults(
                 passed=2,
@@ -273,11 +269,11 @@ class TestAgenticBenchmarkRunner:
                 output="2/3 tests passed",
             )
             mock_validate_tdd_output.return_value = mock_test_results
-            
+
             # Mock reporter save
             mock_save_path = Path(temp_dir) / "result.json"
             mock_reporter.return_value.save.return_value = mock_save_path
-            
+
             # Run and save
             result, save_path = run_and_save_agentic_benchmark(
                 model="test-model",
@@ -289,12 +285,12 @@ class TestAgenticBenchmarkRunner:
                 output_dir=Path(temp_dir),
                 run_tests=True,
             )
-            
+
             # Verify result
             assert result.benchmark_id.startswith("agentic_")
             assert result.model == "test-model"
             assert result.test_results == mock_test_results
-            
+
             # Verify saving
             assert save_path == mock_save_path
             mock_reporter.return_value.save.assert_called_once()
@@ -307,7 +303,7 @@ class TestAgenticBenchmarkRunner:
                 Path("/fake/recipes/nonexistent.yaml"),  # First call (task.id with -)
                 Path("/fake/recipes/test_agentic_task.yaml"),  # Second call (task.id)
             ]
-            
+
             task = BenchmarkTask(
                 id="test-agentic-task",  # Contains hyphens
                 name="Test",
@@ -316,7 +312,7 @@ class TestAgenticBenchmarkRunner:
                 difficulty=TaskDifficulty.SIMPLE,
                 expected_output_tokens=100,
             )
-            
+
             with tempfile.TemporaryDirectory() as temp_dir:
                 with patch('local_ai.benchmark.agentic_runner.get_goose_output_dir') as mock_dir:
                     with patch('local_ai.benchmark.agentic_runner.run_goose_recipe') as mock_run:
@@ -332,13 +328,13 @@ class TestAgenticBenchmarkRunner:
                             mock_validate.return_value = TestResults(
                                 passed=1, failed=0, errors=0, skipped=0, total=1, output="ok"
                             )
-                            
+
                             result = run_agentic_benchmark(
                                 model="test-model",
                                 task=task,
                                 output_dir=Path(temp_dir),
                             )
-                            
+
                             # Should have tried both recipe paths
                             assert mock_get_recipe_path.call_count == 2
                             # Should have used the second (alternate) path

@@ -3,6 +3,7 @@
 import typer
 
 from local_ai.cli.benchmark import benchmark_app
+from local_ai.cli.config import config_app
 from local_ai.cli.models import models_app
 from local_ai.cli.server import server_app
 from local_ai.cli.status import status_app
@@ -17,6 +18,7 @@ app.add_typer(server_app, name="server")
 app.add_typer(benchmark_app, name="benchmark")
 app.add_typer(models_app, name="models")
 app.add_typer(status_app, name="status")
+app.add_typer(config_app, name="config")
 
 
 def version_callback(value: bool) -> None:

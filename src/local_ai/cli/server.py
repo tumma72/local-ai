@@ -6,6 +6,7 @@ Provides subcommands for managing the MLX LM server:
 - status: Show server status
 """
 
+import subprocess
 from pathlib import Path
 from typing import Annotated
 
@@ -18,8 +19,31 @@ from local_ai.config.loader import load_config
 from local_ai.logging import configure_logging, get_logger
 from local_ai.server.manager import ServerManager
 
+# Default state directory for logs
+STATE_DIR = Path.home() / ".local" / "state" / "local-ai"
+
 console = Console()
 _logger = get_logger("CLI.server")
+
+
+def _format_uptime(seconds: float) -> str:
+    """Format uptime seconds into human-readable string.
+
+    Args:
+        seconds: Uptime in seconds.
+
+    Returns:
+        Formatted string like "2h 30m 15s" or "5m 30s".
+    """
+    hours, remainder = divmod(int(seconds), 3600)
+    minutes, secs = divmod(remainder, 60)
+
+    if hours > 0:
+        return f"{hours}h {minutes}m {secs}s"
+    elif minutes > 0:
+        return f"{minutes}m {secs}s"
+    else:
+        return f"{secs}s"
 
 server_app = typer.Typer(
     name="server",
@@ -148,6 +172,12 @@ def status(
         table.add_row("Status", f"[green]running[/green] with PID {server_status.pid}")
         table.add_row("Host", str(server_status.host))
         table.add_row("Port", str(server_status.port))
+
+        # Format uptime
+        if server_status.uptime_seconds is not None:
+            uptime_str = _format_uptime(server_status.uptime_seconds)
+            table.add_row("Uptime", uptime_str)
+
         table.add_row("Available Models", str(server_status.models))
         table.add_row("Health", health_display)
         panel = Panel(table, title="[bold cyan]Server Status[/bold cyan]", border_style="cyan")
@@ -160,3 +190,83 @@ def status(
             border_style="cyan",
         )
         console.print(panel)
+
+
+@server_app.command()
+def logs(
+    follow: Annotated[
+        bool,
+        typer.Option("--follow", "-f", help="Follow log output in real-time"),
+    ] = False,
+    lines: Annotated[
+        int,
+        typer.Option("--lines", "-n", help="Number of lines to show"),
+    ] = 50,
+    log_level: Annotated[
+        str,
+        typer.Option("--log-level", "-l", help="Log level"),
+    ] = "INFO",
+) -> None:
+    """View server logs.
+
+    Shows logs from the server process. By default shows last 50 lines.
+    Use --follow to stream logs in real-time.
+
+    Examples:
+        local-ai server logs
+        local-ai server logs --follow
+        local-ai server logs --lines 100
+        local-ai server logs -f -n 20
+    """
+    configure_logging(log_level=log_level, console=False)
+    _logger.info("CLI logs command: follow={}, lines={}", follow, lines)
+
+    log_file = STATE_DIR / "server.log"
+
+    if not log_file.exists():
+        console.print("[yellow]No log file found[/yellow]")
+        console.print(f"\n[dim]Expected location: {log_file}[/dim]")
+        console.print("\nThe server may not have been started yet, or logs may have been cleared.")
+        console.print("\nStart the server with:")
+        console.print("  local-ai server start")
+        return
+
+    try:
+        if follow:
+            # Stream logs in real-time using tail -f
+            console.print(f"[cyan]Following logs from: {log_file}[/cyan]")
+            console.print("[dim]Press Ctrl+C to stop[/dim]\n")
+
+            try:
+                subprocess.run(
+                    ["tail", "-f", "-n", str(lines), str(log_file)],
+                    check=False,
+                )
+            except KeyboardInterrupt:
+                console.print("\n[dim]Stopped following logs[/dim]")
+                return
+        else:
+            # Show last N lines
+            console.print(f"[cyan]Last {lines} lines from: {log_file}[/cyan]\n")
+
+            with open(log_file) as f:
+                all_lines = f.readlines()
+                display_lines = all_lines[-lines:] if len(all_lines) > lines else all_lines
+
+                for line in display_lines:
+                    # Print without extra newline (lines already have \n)
+                    console.print(line, end="", highlight=False)
+
+            total = len(all_lines)
+            shown = len(display_lines)
+            console.print(f"\n[dim]Showing {shown} of {total} total lines[/dim]")
+            console.print(f"[dim]Log file: {log_file}[/dim]")
+
+    except PermissionError:
+        console.print(f"[red]Permission denied reading log file: {log_file}[/red]")
+        _logger.error("Permission denied: {}", log_file)
+        raise typer.Exit(code=1) from None
+    except Exception as e:
+        console.print(f"[red]Failed to read logs: {e}[/red]")
+        _logger.error("Failed to read logs: {}", e)
+        raise typer.Exit(code=1) from None

@@ -14,7 +14,6 @@ from pathlib import Path
 import pytest
 
 from local_ai.config.loader import (
-    CONVERTED_MODELS_DIR,
     ConfigError,
     _resolve_model_path,
     load_config,
@@ -35,7 +34,6 @@ class TestLoadConfigFromTomlFile:
         assert settings.model.path == "mlx-community/test-model"
         assert settings.server.host == "127.0.0.1"
         assert settings.server.port == 8080
-        assert settings.generation.max_tokens == 4096
 
     def test_returns_valid_settings_from_minimal_toml(
         self, minimal_config_toml: Path
@@ -48,7 +46,6 @@ class TestLoadConfigFromTomlFile:
         # Should use defaults for unspecified sections
         assert settings.server.host == "127.0.0.1"
         assert settings.server.port == 8080
-        assert settings.generation.max_tokens == 4096
 
 
 class TestCliOverrides:

@@ -5,8 +5,6 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from local_ai.benchmark.test_validator import (
     TestResults,
     _parse_pytest_output,
@@ -34,9 +32,9 @@ class TestBenchmarkTestValidator:
         FAILED test_bar.py::test_fail - AssertionError: test failure
         ======================= 1 passed, 1 failed in 0.01s ========================
         """
-        
+
         results = _parse_pytest_output(output)
-        
+
         assert results.passed == 1
         assert results.failed == 1
         assert results.errors == 0
@@ -51,9 +49,9 @@ class TestBenchmarkTestValidator:
         test_foo.py::test_three ERROR
         test_foo.py::test_four SKIPPED
         """
-        
+
         results = _parse_pytest_output(output)
-        
+
         assert results.passed == 1
         assert results.failed == 1
         assert results.errors == 1
@@ -63,9 +61,9 @@ class TestBenchmarkTestValidator:
     def test_parse_pytest_output_no_tests(self) -> None:
         """Test parsing pytest output with no tests found."""
         output = "No tests found"
-        
+
         results = _parse_pytest_output(output)
-        
+
         assert results.passed == 0
         assert results.failed == 0
         assert results.errors == 0
@@ -80,14 +78,14 @@ class TestBenchmarkTestValidator:
         mock_result.stderr = ""
         mock_result.returncode = 0
         mock_subprocess_run.return_value = mock_result
-        
+
         with tempfile.TemporaryDirectory() as temp_dir:
             working_dir = Path(temp_dir)
             # Create a dummy test file
             (working_dir / "test_dummy.py").write_text("def test_pass(): pass")
-            
+
             results = run_pytest(working_dir)
-            
+
             assert results.passed == 1
             assert results.failed == 0
             assert "1 passed, 0 failed" in results.output
@@ -96,14 +94,14 @@ class TestBenchmarkTestValidator:
     def test_run_pytest_timeout(self, mock_subprocess_run: MagicMock) -> None:
         """Test handling pytest timeout."""
         mock_subprocess_run.side_effect = subprocess.TimeoutExpired("pytest", 1.0)
-        
+
         with tempfile.TemporaryDirectory() as temp_dir:
             working_dir = Path(temp_dir)
             # Create a test file so it gets past the file check
             (working_dir / "test_dummy.py").write_text("def test_pass(): pass")
-            
+
             results = run_pytest(working_dir, timeout=1.0)
-            
+
             assert results.passed == 0
             assert "timed out" in results.output
 
@@ -111,23 +109,23 @@ class TestBenchmarkTestValidator:
     def test_run_pytest_python_not_found(self, mock_subprocess_run: MagicMock) -> None:
         """Test handling when Python/pytest not found."""
         mock_subprocess_run.side_effect = FileNotFoundError("Python not found")
-        
+
         with tempfile.TemporaryDirectory() as temp_dir:
             working_dir = Path(temp_dir)
             # Create a test file so it gets past the file check
             (working_dir / "test_dummy.py").write_text("def test_pass(): pass")
-            
+
             results = run_pytest(working_dir)
-            
+
             assert results.passed == 0
             assert "Python or pytest not found" in results.output
 
     def test_run_pytest_directory_not_found(self) -> None:
         """Test handling when working directory doesn't exist."""
         non_existent_dir = Path("/non/existent/dir")
-        
+
         results = run_pytest(non_existent_dir)
-        
+
         assert results.passed == 0
         assert "Directory not found" in results.output
 
@@ -137,9 +135,9 @@ class TestBenchmarkTestValidator:
             working_dir = Path(temp_dir)
             # Create a non-test file
             (working_dir / "main.py").write_text("print('hello')")
-            
+
             results = run_pytest(working_dir)
-            
+
             assert results.passed == 0
             assert "No test files found" in results.output
 
@@ -147,9 +145,9 @@ class TestBenchmarkTestValidator:
         """Test validation when required files are missing."""
         with tempfile.TemporaryDirectory() as temp_dir:
             working_dir = Path(temp_dir)
-            
+
             results = validate_tdd_output(working_dir)
-            
+
             assert results.passed == 0
             assert "Missing required files" in results.output
 
@@ -164,15 +162,15 @@ class TestBenchmarkTestValidator:
             total=2,
             output="All tests passed"
         )
-        
+
         with tempfile.TemporaryDirectory() as temp_dir:
             working_dir = Path(temp_dir)
             # Create required files
             (working_dir / "main.py").write_text("def main(): pass")
             (working_dir / "test_main.py").write_text("def test_main(): pass")
-            
+
             results = validate_tdd_output(working_dir)
-            
+
             assert results.passed == 2
             assert results.failed == 0
             mock_run_pytest.assert_called_once()

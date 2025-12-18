@@ -114,6 +114,20 @@ class ServerManager:
         """Path to the server log file."""
         return self._state_dir / "server.log"
 
+    @property
+    def _start_time_file(self) -> Path:
+        """Path to the server start time tracking file."""
+        return self._state_dir / "server.start_time"
+
+    def _read_start_time(self) -> float | None:
+        """Read start time from file if it exists."""
+        if not self._start_time_file.exists():
+            return None
+        try:
+            return float(self._start_time_file.read_text().strip())
+        except (ValueError, OSError):
+            return None
+
     def _read_pid(self) -> int | None:
         """Read PID from file if it exists."""
         if not self._pid_file.exists():
@@ -220,8 +234,9 @@ class ServerManager:
                 start_new_session=True,
             )
 
-        # Write PID file early so we can track the process
+        # Write PID file and start time early so we can track the process
         self._pid_file.write_text(str(process.pid))
+        self._start_time_file.write_text(str(time.time()))
         self._logger.debug("Process started with PID {}, waiting for health...", process.pid)
 
         # Wait for server to become healthy
@@ -236,6 +251,7 @@ class ServerManager:
             if process.poll() is not None:
                 # Process exited - read log for error details
                 self._pid_file.unlink(missing_ok=True)
+                self._start_time_file.unlink(missing_ok=True)
                 log_tail = self._get_last_log_lines(30)
                 self._logger.error(
                     "Server process exited with code {} after {:.1f}s",
@@ -267,6 +283,7 @@ class ServerManager:
                 with contextlib.suppress(OSError):
                     os.kill(process.pid, signal.SIGTERM)
                 self._pid_file.unlink(missing_ok=True)
+                self._start_time_file.unlink(missing_ok=True)
                 log_tail = self._get_last_log_lines(30)
                 error_msg = f"Server did not become healthy within {startup_timeout}s"
                 if log_tail:
@@ -296,6 +313,7 @@ class ServerManager:
             # Process not running, clean up stale PID file
             self._logger.debug("Stale PID file found, cleaning up")
             self._pid_file.unlink(missing_ok=True)
+            self._start_time_file.unlink(missing_ok=True)
             return StopResult(success=True)
 
         sig = signal.SIGKILL if force else signal.SIGTERM
@@ -309,6 +327,7 @@ class ServerManager:
             return StopResult(success=False, error=str(e))
 
         self._pid_file.unlink(missing_ok=True)
+        self._start_time_file.unlink(missing_ok=True)
         self._logger.info("Server stopped successfully (PID {})", pid)
         return StopResult(success=True)
 
@@ -341,12 +360,19 @@ class ServerManager:
         available_models = get_models(self._host, self._port, timeout=2.0)
         models_str = ", ".join(available_models) if available_models else "none available"
 
+        # Calculate uptime from start time file
+        uptime_seconds: float | None = None
+        start_time = self._read_start_time()
+        if start_time is not None:
+            uptime_seconds = time.time() - start_time
+
         self._logger.debug(
-            "Server running: PID={}, host={}, port={}, health={}, available_models={}",
+            "Server running: PID={}, host={}, port={}, health={}, uptime={:.1f}s, models={}",
             pid,
             self._host,
             self._port,
             health,
+            uptime_seconds or 0,
             available_models,
         )
         return ServerStatus(
@@ -355,6 +381,6 @@ class ServerManager:
             host=self._host,
             port=self._port,
             models=models_str,
-            uptime_seconds=None,  # Would require tracking start time
+            uptime_seconds=uptime_seconds,
             health=health,
         )

@@ -51,7 +51,7 @@ def status(
 
     console.print("\n[bold cyan]Model Limits[/bold cyan]")
     console.print(f"  Max model size: ~{max_model:.0f} GB")
-    console.print(f"  Recommended format: MLX")
+    console.print("  Recommended format: MLX")
 
     # Show quantization recommendations
     console.print("\n[bold cyan]Quantization Guide[/bold cyan]")

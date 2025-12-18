@@ -1,7 +1,5 @@
 """Tests for main module entry point."""
 
-import pytest
-from unittest.mock import patch
 
 from local_ai.__main__ import app
 
@@ -13,10 +11,10 @@ class TestMainModule:
         """Test that main module calls the CLI app when executed."""
         # Test that the app function is callable
         assert callable(app)
-        
+
         # Test that importing the module doesn't raise errors
         import local_ai.__main__
-        
+
         # The module should have the app function
         assert hasattr(local_ai.__main__, 'app')
 

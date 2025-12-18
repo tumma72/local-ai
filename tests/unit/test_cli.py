@@ -12,7 +12,6 @@ Tests focus on CLI output and exit codes, not implementation details.
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 from typer.testing import CliRunner
 
 from local_ai.cli.main import app
@@ -293,3 +292,115 @@ class TestServerStartValidation:
         assert result.exception is not None
         assert isinstance(result.exception, ConfigError)
         assert "model" in str(result.exception).lower()
+
+
+class TestConfigShowCommand:
+    """Verify `local-ai config show` command behavior."""
+
+    def test_config_show_returns_exit_code_0_and_displays_settings(
+        self, cli_runner: CliRunner
+    ) -> None:
+        """config show should return exit code 0 and display configuration values."""
+        with patch("local_ai.cli.config._discover_config_path", return_value=None):
+            result = cli_runner.invoke(app, ["config", "show"])
+
+        assert result.exit_code == 0
+        # Should display configuration sections
+        assert "Configuration" in result.stdout
+        assert "Server" in result.stdout
+        assert "Model" in result.stdout
+
+    def test_config_show_displays_default_values_when_no_config_file(
+        self, cli_runner: CliRunner
+    ) -> None:
+        """config show should indicate defaults when no config file found."""
+        with patch("local_ai.cli.config._discover_config_path", return_value=None):
+            result = cli_runner.invoke(app, ["config", "show"])
+
+        assert result.exit_code == 0
+        # Should indicate no config file and using defaults
+        assert "No configuration file found" in result.stdout
+        assert "Using default values" in result.stdout
+
+    def test_config_show_with_explicit_config_file_displays_file_path(
+        self, cli_runner: CliRunner, sample_config_toml: Path
+    ) -> None:
+        """config show should display the explicit config file path when provided."""
+        result = cli_runner.invoke(
+            app, ["config", "show", "--config", str(sample_config_toml)]
+        )
+
+        assert result.exit_code == 0
+        # Should display the config file path
+        assert str(sample_config_toml) in result.stdout
+        assert "explicit path" in result.stdout
+
+    def test_config_show_displays_server_settings(
+        self, cli_runner: CliRunner
+    ) -> None:
+        """config show should display server host, port, and log level."""
+        with patch("local_ai.cli.config._discover_config_path", return_value=None):
+            result = cli_runner.invoke(app, ["config", "show"])
+
+        assert result.exit_code == 0
+        # Should show default server settings
+        assert "host" in result.stdout
+        assert "port" in result.stdout
+        assert "log_level" in result.stdout
+
+    def test_config_show_displays_model_settings(
+        self, cli_runner: CliRunner
+    ) -> None:
+        """config show should display model configuration settings."""
+        with patch("local_ai.cli.config._discover_config_path", return_value=None):
+            result = cli_runner.invoke(app, ["config", "show"])
+
+        assert result.exit_code == 0
+        # Should show model settings section
+        assert "Model" in result.stdout
+        assert "path" in result.stdout
+        assert "trust_remote_code" in result.stdout
+
+
+class TestConfigShowSourceDisplay:
+    """Verify config show displays correct source for each setting."""
+
+    def test_config_show_indicates_file_source_when_config_loaded(
+        self, cli_runner: CliRunner, sample_config_toml: Path
+    ) -> None:
+        """config show should indicate 'File' source when loading from config file."""
+        result = cli_runner.invoke(
+            app, ["config", "show", "--config", str(sample_config_toml)]
+        )
+
+        assert result.exit_code == 0
+        # Should indicate values come from file
+        assert "File" in result.stdout
+
+    def test_config_show_indicates_default_source_when_no_config(
+        self, cli_runner: CliRunner
+    ) -> None:
+        """config show should indicate 'Default' source when using defaults."""
+        with patch("local_ai.cli.config._discover_config_path", return_value=None):
+            result = cli_runner.invoke(app, ["config", "show"])
+
+        assert result.exit_code == 0
+        # Should indicate values are defaults
+        assert "Default" in result.stdout
+
+
+class TestConfigShowSearchPaths:
+    """Verify config show displays configuration search paths."""
+
+    def test_config_show_displays_search_paths(
+        self, cli_runner: CliRunner
+    ) -> None:
+        """config show should list the config file search paths."""
+        with patch("local_ai.cli.config._discover_config_path", return_value=None):
+            result = cli_runner.invoke(app, ["config", "show"])
+
+        assert result.exit_code == 0
+        # Should show search paths
+        assert "Config search paths" in result.stdout
+        assert "./config.toml" in result.stdout
+        assert "~/.config/local-ai/config.toml" in result.stdout

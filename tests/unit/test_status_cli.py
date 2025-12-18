@@ -20,7 +20,7 @@ class TestStatusCLI:
     @patch('local_ai.cli.status.detect_hardware')
     @patch('local_ai.cli.status.get_max_model_size_gb')
     def test_status_command_success(
-        self, 
+        self,
         mock_get_max_model_size_gb: MagicMock,
         mock_detect_hardware: MagicMock,
         cli_runner: CliRunner
@@ -42,7 +42,7 @@ class TestStatusCLI:
         mock_get_max_model_size_gb.return_value = 7.0
 
         result = cli_runner.invoke(app, ["status"])
-        
+
         assert result.exit_code == 0
         assert "Apple M1" in result.output
         assert "16 GB" in result.output
@@ -51,7 +51,7 @@ class TestStatusCLI:
 
     @patch('local_ai.cli.status.detect_hardware')
     def test_status_command_hardware_detection_failure(
-        self, 
+        self,
         mock_detect_hardware: MagicMock,
         cli_runner: CliRunner
     ) -> None:
@@ -59,14 +59,14 @@ class TestStatusCLI:
         mock_detect_hardware.side_effect = RuntimeError("Hardware detection failed")
 
         result = cli_runner.invoke(app, ["status"])
-        
+
         assert result.exit_code == 1
         assert "Hardware detection failed" in result.output
 
     def test_status_help_shows_usage(self, cli_runner: CliRunner) -> None:
         """Test status help command shows usage information."""
         result = cli_runner.invoke(app, ["status", "--help"])
-        
+
         assert result.exit_code == 0
         assert "Show system status and hardware info" in result.output
         assert "--log-level" in result.output

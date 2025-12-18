@@ -1,6 +1,5 @@
 """Tests for models schema module."""
 
-import pytest
 
 from local_ai.models.schema import (
     ModelSearchResult,
@@ -60,7 +59,7 @@ class TestModelsSchema:
             tags=["llm", "quantized"],
             size_bytes=4_000_000_000
         )
-        
+
         assert result.name == "Qwen3-8B-4bit"
 
     def test_model_search_result_quantization_detection(self) -> None:
@@ -75,7 +74,7 @@ class TestModelsSchema:
             tags=["llm", "quantized"],
             size_bytes=4_000_000_000
         )
-        
+
         assert result.quantization == Quantization.Q4
 
     def test_model_search_result_source_label(self) -> None:
@@ -90,7 +89,7 @@ class TestModelsSchema:
             tags=["llm", "quantized"],
             size_bytes=4_000_000_000
         )
-        
+
         other_result = ModelSearchResult(
             id="other-org/model-name",
             author="other-org",
@@ -101,7 +100,7 @@ class TestModelsSchema:
             tags=["llm"],
             size_bytes=4_000_000_000
         )
-        
+
         assert mlx_result.source_label == "★ MLX"
         assert other_result.source_label == "mlx"
 
@@ -118,7 +117,7 @@ class TestModelsSchema:
             tags=["llm"],
             size_bytes=15_000_000_000  # ~15 GB
         )
-        
+
         # Test small size (<10GB)
         small_result = ModelSearchResult(
             id="mlx-community/small-model",
@@ -130,7 +129,7 @@ class TestModelsSchema:
             tags=["llm"],
             size_bytes=3_500_000_000  # ~3.5 GB
         )
-        
+
         # Test None size
         none_result = ModelSearchResult(
             id="mlx-community/unknown-model",
@@ -142,7 +141,7 @@ class TestModelsSchema:
             tags=["llm"],
             size_bytes=None
         )
-        
+
         assert large_result.size_gb == "14 GB"  # 15_000_000_000 / (1024^3) ≈ 13.97 GB → 14 GB
         assert small_result.size_gb == "3.3 GB"  # 3_500_000_000 / (1024^3) ≈ 3.26 GB → 3.3 GB
         assert none_result.size_gb == "-"

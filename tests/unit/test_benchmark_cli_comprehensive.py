@@ -8,15 +8,14 @@ Tests verify public CLI interface behavior for benchmarking:
 Tests mock external dependencies for isolation and focus on CLI behavior.
 """
 
-import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 from typer.testing import CliRunner
 
-from local_ai.cli.main import app
 from local_ai.benchmark.schema import BenchmarkTask, TaskDifficulty
+from local_ai.cli.main import app
 
 
 class TestBenchmarkCLI:
@@ -30,28 +29,28 @@ class TestBenchmarkCLI:
     def test_benchmark_tasks_help_shows_usage(self, cli_runner: CliRunner) -> None:
         """Test benchmark tasks help command shows usage information."""
         result = cli_runner.invoke(app, ["benchmark", "tasks", "--help"])
-        
+
         assert result.exit_code == 0
         assert "List available benchmark tasks" in result.output
         assert "--log-level" in result.output
 
     @patch('local_ai.cli.benchmark.get_builtin_tasks')
     def test_benchmark_tasks_with_no_tasks(
-        self, 
+        self,
         mock_get_builtin_tasks: MagicMock,
         cli_runner: CliRunner
     ) -> None:
         """Test benchmark tasks command when no tasks are available."""
         mock_get_builtin_tasks.return_value = []
-        
+
         result = cli_runner.invoke(app, ["benchmark", "tasks"])
-        
+
         assert result.exit_code == 0
         assert "No benchmark tasks found" in result.output
 
     @patch('local_ai.cli.benchmark.get_builtin_tasks')
     def test_benchmark_tasks_with_multiple_tasks(
-        self, 
+        self,
         mock_get_builtin_tasks: MagicMock,
         cli_runner: CliRunner
     ) -> None:
@@ -75,9 +74,9 @@ class TestBenchmarkCLI:
             ),
         ]
         mock_get_builtin_tasks.return_value = mock_tasks
-        
+
         result = cli_runner.invoke(app, ["benchmark", "tasks"])
-        
+
         assert result.exit_code == 0
         assert "Available Benchmark Tasks" in result.output
         assert "task-1" in result.output
@@ -86,7 +85,7 @@ class TestBenchmarkCLI:
     def test_benchmark_run_help_shows_usage(self, cli_runner: CliRunner) -> None:
         """Test benchmark run help command shows usage information."""
         result = cli_runner.invoke(app, ["benchmark", "run", "--help"])
-        
+
         assert result.exit_code == 0
         assert "Run benchmark on a model with specified task" in result.output
         assert "--model" in result.output
@@ -113,9 +112,8 @@ class TestBenchmarkCLI:
             expected_output_tokens=100,
         )
         mock_get_task_by_id.return_value = mock_task
-        
+
         # Mock benchmark execution - needs to return a coroutine since runner.run is async
-        import asyncio
         mock_result = MagicMock()
         mock_result.model = "test-model"
         mock_result.task = mock_task
@@ -123,37 +121,37 @@ class TestBenchmarkCLI:
         mock_result.avg_tokens_per_second = 25.0
         mock_result.avg_ttft_ms = 150.0
         mock_result.success_rate = 1.0
-        
+
         async def mock_run(*args, **kwargs):
             return mock_result
-        
+
         # Create a MagicMock for the run method that returns our coroutine
         mock_run_method = MagicMock(side_effect=mock_run)
         mock_runner.return_value.run = mock_run_method
-        
+
         # Mock reporter
         mock_save_path = Path("/fake/result.json")
         mock_reporter.return_value.save.return_value = mock_save_path
-        
+
         result = cli_runner.invoke(app, [
             "benchmark", "run",
             "--model", "test-model",
             "--task", "test-task",
             "--requests", "3",
         ])
-        
+
         print(f"Exit code: {result.exit_code}")
         print(f"Output: {result.output}")
         assert result.exit_code == 0
         assert "Benchmark Results" in result.output
         assert "test-model" in result.output
-        
+
         # Verify task was retrieved
         mock_get_task_by_id.assert_called_once_with("test-task")
-        
+
         # Verify benchmark was executed
         mock_runner.return_value.run.assert_called_once()
-        
+
         # Verify result was saved
         mock_reporter.return_value.save.assert_called_once()
 
@@ -165,13 +163,13 @@ class TestBenchmarkCLI:
     ) -> None:
         """Test benchmark run command handles invalid task."""
         mock_get_task_by_id.return_value = None
-        
+
         result = cli_runner.invoke(app, [
             "benchmark", "run",
             "--model", "test-model",
             "--task", "nonexistent-task",
         ])
-        
+
         assert result.exit_code == 1
         assert "Task not found" in result.output
 
@@ -194,23 +192,23 @@ class TestBenchmarkCLI:
             expected_output_tokens=100,
         )
         mock_get_task_by_id.return_value = mock_task
-        
+
         # Mock benchmark execution failure
         mock_runner.return_value.execute.side_effect = RuntimeError("Benchmark failed")
-        
+
         result = cli_runner.invoke(app, [
             "benchmark", "run",
             "--model", "test-model",
             "--task", "test-task",
         ])
-        
+
         assert result.exit_code == 1
         assert "Benchmark failed" in result.output
 
     def test_benchmark_compare_help_shows_usage(self, cli_runner: CliRunner) -> None:
         """Test benchmark compare help command shows usage information."""
         result = cli_runner.invoke(app, ["benchmark", "compare", "--help"])
-        
+
         assert result.exit_code == 0
         assert "Compare benchmark results" in result.output
 
@@ -222,11 +220,10 @@ class TestBenchmarkCLI:
     ) -> None:
         """Test benchmark compare command when no results are available."""
         # Mock the print_comparison_table method to print the expected message
-        from rich.console import Console
         mock_reporter.return_value.print_comparison_table = MagicMock()
-        
+
         result = cli_runner.invoke(app, ["benchmark", "compare"])
-        
+
         assert result.exit_code == 0
         # The compare command should work without errors
         mock_reporter.return_value.print_comparison_table.assert_called_once()
@@ -240,9 +237,9 @@ class TestBenchmarkCLI:
         """Test benchmark compare command displays comparison table."""
         # Mock the print_comparison_table method
         mock_reporter.return_value.print_comparison_table = MagicMock()
-        
+
         result = cli_runner.invoke(app, ["benchmark", "compare"])
-        
+
         assert result.exit_code == 0
         # The compare command should work without errors
         mock_reporter.return_value.print_comparison_table.assert_called_once()
@@ -250,7 +247,7 @@ class TestBenchmarkCLI:
     def test_benchmark_help_shows_subcommands(self, cli_runner: CliRunner) -> None:
         """Test benchmark help shows available subcommands."""
         result = cli_runner.invoke(app, ["benchmark", "--help"])
-        
+
         assert result.exit_code == 0
         assert "Benchmark local LLM models" in result.output
         assert "tasks" in result.output
@@ -265,9 +262,9 @@ class TestBenchmarkCLI:
     ) -> None:
         """Test benchmark tasks command with log level option."""
         mock_get_builtin_tasks.return_value = []
-        
+
         result = cli_runner.invoke(app, ["benchmark", "tasks", "--log-level", "DEBUG"])
-        
+
         assert result.exit_code == 0
         # Should work without errors with different log level
 
@@ -292,7 +289,7 @@ class TestBenchmarkCLI:
             expected_output_tokens=100,
         )
         mock_get_task_by_id.return_value = mock_task
-        
+
         # Mock benchmark execution - needs to return a coroutine since runner.run is async
         mock_result = MagicMock()
         mock_result.model = "test-model"
@@ -301,25 +298,25 @@ class TestBenchmarkCLI:
         mock_result.avg_tokens_per_second = 30.0
         mock_result.avg_ttft_ms = 180.0
         mock_result.success_rate = 0.8
-        
+
         async def mock_run(*args, **kwargs):
             return mock_result
-        
+
         # Create a MagicMock for the run method that returns our coroutine
         mock_run_method = MagicMock(side_effect=mock_run)
         mock_runner.return_value.run = mock_run_method
-        
+
         # Mock reporter
         mock_save_path = Path("/fake/result.json")
         mock_reporter.return_value.save.return_value = mock_save_path
-        
+
         result = cli_runner.invoke(app, [
             "benchmark", "run",
             "--model", "test-model",
             "--task", "test-task",
             "--requests", "5",
         ])
-        
+
         assert result.exit_code == 0
         assert "Total Runs" in result.output
         assert "5" in result.output  # Should show 5 total runs

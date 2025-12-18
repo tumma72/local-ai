@@ -15,7 +15,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from local_ai.config.schema import LocalAISettings, ModelConfig, ServerConfig
+from local_ai.config.schema import LocalAISettings
 from local_ai.server.manager import (
     ServerManager,
     ServerStatus,

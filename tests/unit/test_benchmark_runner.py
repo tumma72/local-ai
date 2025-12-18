@@ -15,7 +15,6 @@ from local_ai.benchmark.runner import BenchmarkRunner
 from local_ai.benchmark.schema import (
     BenchmarkResult,
     BenchmarkTask,
-    TaskDifficulty,
     ThroughputMetrics,
     TimingMetrics,
 )

@@ -222,13 +222,99 @@
                 margin-bottom: 1rem;
             }
 
+            /* Loading spinner */
+            .spinner {
+                border: 3px solid #f3f3f3;
+                border-top: 3px solid #667eea;
+                border-radius: 50%;
+                width: 20px;
+                height: 20px;
+                animation: spin 1s linear infinite;
+                display: inline-block;
+                margin-right: 8px;
+                vertical-align: middle;
+            }
+
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+
+            .loading-container {
+                display: flex;
+                align-items: center;
+                padding: 0.75rem;
+                color: #6c757d;
+                background: #f8f9fa;
+                border-radius: 6px;
+                margin-bottom: 1rem;
+            }
+
+            /* Error banner */
+            .error-banner {
+                background: #f8d7da;
+                border: 1px solid #f5c6cb;
+                border-radius: 6px;
+                padding: 1rem;
+                margin-bottom: 1rem;
+                color: #721c24;
+            }
+
+            .error-banner strong {
+                display: block;
+                margin-bottom: 0.5rem;
+            }
+
+            /* Thinking blocks for AI reasoning */
+            .thinking-block {
+                background: #f5f5f5;
+                border-left: 4px solid #999;
+                padding: 1rem;
+                margin-bottom: 1rem;
+                border-radius: 0 6px 6px 0;
+                font-size: 0.85rem;
+                color: #666;
+            }
+
+            .thinking-block .thinking-header {
+                display: block;
+                margin-bottom: 0.5rem;
+                color: #555;
+                font-weight: 500;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            }
+
+            .thinking-content {
+                white-space: pre-wrap;
+                word-wrap: break-word;
+                font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            }
+
+            /* Debug panel - collapsible */
+            .debug-toggle {
+                cursor: pointer;
+                color: #667eea;
+                margin-top: 1rem;
+                display: inline-block;
+                font-size: 0.9rem;
+                user-select: none;
+            }
+
+            .debug-toggle:hover {
+                text-decoration: underline;
+            }
+
             .debug-info {
-                margin-top: 1.5rem;
+                margin-top: 0.5rem;
                 padding: 1rem;
                 background: #e9ecef;
                 border-radius: 6px;
                 font-size: 0.85rem;
                 overflow-x: auto;
+            }
+
+            .debug-info.collapsed {
+                display: none;
             }
 
             .debug-info pre {
@@ -354,13 +440,14 @@
                         </button>
                     </div>
 
-                    <div class="debug-info">
+                    <div class="debug-toggle" onclick="toggleDebug()">
+                        <span id="debug-toggle-text">▶ Show Debug Info</span>
+                    </div>
+                    <div class="debug-info collapsed" id="debug-panel">
                         <strong>Debug Info:</strong>
-                        <pre id="debug-info">
-Server: {{ status.host }}:{{ status.port }}
+                        <pre id="debug-info">Server: {{ status.host }}:{{ status.port }}
 Models available: {{ models|length }}
-Status: {{ status.health or 'unknown' }}</pre
-                        >
+Status: {{ status.health or 'unknown' }}</pre>
                     </div>
                 </div>
             </div>
@@ -397,20 +484,127 @@ Status: {{ status.health or 'unknown' }}</pre
                 }
             }
 
+            // Toggle debug panel visibility
+            function toggleDebug() {
+                const panel = document.getElementById('debug-panel');
+                const toggleText = document.getElementById('debug-toggle-text');
+
+                if (panel.classList.contains('collapsed')) {
+                    panel.classList.remove('collapsed');
+                    toggleText.textContent = '▼ Hide Debug Info';
+                } else {
+                    panel.classList.add('collapsed');
+                    toggleText.textContent = '▶ Show Debug Info';
+                }
+            }
+
+            /**
+             * Parse AI response to extract thinking tags and regular content.
+             * Detects both <think> and <thinking> tags.
+             */
+            function parseThinkingTags(response) {
+                const thinkingBlocks = [];
+                let cleanedResponse = response;
+
+                // Match both <think> and <thinking> tags (case insensitive, multiline)
+                const thinkingRegex = /<think(?:ing)?>([\s\S]*?)<\/think(?:ing)?>/gi;
+
+                // Use matchAll to extract all thinking blocks
+                const matches = Array.from(response.matchAll(thinkingRegex));
+                for (const match of matches) {
+                    thinkingBlocks.push(match[1].trim());
+                }
+
+                // Remove thinking tags from response
+                cleanedResponse = cleanedResponse.replace(thinkingRegex, '').trim();
+
+                return {
+                    thinking: thinkingBlocks,
+                    response: cleanedResponse
+                };
+            }
+
+            /**
+             * Create a thinking block element using safe DOM methods
+             */
+            function createThinkingBlock(content, id) {
+                const thinkingDiv = document.createElement("div");
+                thinkingDiv.id = id;
+                thinkingDiv.className = "thinking-block";
+
+                const header = document.createElement("span");
+                header.className = "thinking-header";
+                header.textContent = "💭 Reasoning:";
+
+                const contentDiv = document.createElement("div");
+                contentDiv.className = "thinking-content";
+                contentDiv.textContent = content;
+
+                thinkingDiv.appendChild(header);
+                thinkingDiv.appendChild(contentDiv);
+
+                return thinkingDiv;
+            }
+
+            /**
+             * Create a loading indicator with spinner using safe DOM methods
+             */
+            function createLoadingIndicator() {
+                const loadingDiv = document.createElement('div');
+                loadingDiv.id = 'loading-indicator';
+                loadingDiv.className = 'loading-container';
+
+                const spinner = document.createElement('div');
+                spinner.className = 'spinner';
+
+                const text = document.createElement('span');
+                text.textContent = 'Loading available models...';
+
+                loadingDiv.appendChild(spinner);
+                loadingDiv.appendChild(text);
+
+                return loadingDiv;
+            }
+
+            /**
+             * Create an error banner using safe DOM methods
+             */
+            function createErrorBanner(errorMessage) {
+                const errorBanner = document.createElement('div');
+                errorBanner.className = 'error-banner';
+
+                const title = document.createElement('strong');
+                title.textContent = '⚠ Failed to Load Models';
+
+                const message = document.createElement('p');
+                message.textContent = errorMessage;
+
+                const hint = document.createElement('p');
+                hint.style.marginTop = '0.5rem';
+                hint.style.fontSize = '0.9rem';
+                hint.textContent = 'Check the debug panel below for details, or ensure the server is running.';
+
+                errorBanner.appendChild(title);
+                errorBanner.appendChild(message);
+                errorBanner.appendChild(hint);
+
+                return errorBanner;
+            }
+
             async function sendMessage() {
                 const message = chatInput.value.trim();
                 if (!message) return;
 
                 const selectedModel = modelSelect.value;
 
-                // Add user message to chat
-                addMessageToChat(message, "user-message");
+                // Add user message to chat (not AI response)
+                addMessageToChat(message, "user-message", false);
                 chatInput.value = "";
                 chatInput.disabled = true;
                 sendButton.disabled = true;
 
                 // Show loading indicator
-                const loadingId = addMessageToChat("Thinking...", "loading");
+                const loadingId = addMessageToChat("Thinking...", "loading", false);
 
                 try {
                     const response = await fetch("/api/chat", {
@@ -436,9 +630,9 @@ Status: {{ status.health or 'unknown' }}</pre
                     // Remove loading indicator
                     removeMessage(loadingId);
 
-                    // Add assistant response
+                    // Add assistant response (IS an AI response - parse thinking tags)
                     const assistantMessage = data.choices[0].message.content;
-                    addMessageToChat(assistantMessage, "assistant-message");
+                    addMessageToChat(assistantMessage, "assistant-message", true);
 
                     // Update debug info
                     debugInfo.textContent += `\n\nTest completed:
@@ -451,7 +645,7 @@ Total tokens: ${data.usage.total_tokens}`;
                     removeMessage(loadingId);
 
                     // Show error
-                    addMessageToChat(`Error: ${error.message}`, "error");
+                    addMessageToChat(`Error: ${error.message}`, "error", false);
                     debugInfo.textContent += `\n\nError: ${error.message}`;
                     console.error("Error:", error);
                 } finally {
@@ -461,13 +655,43 @@ Total tokens: ${data.usage.total_tokens}`;
                 }
             }
 
-            function addMessageToChat(message, className) {
+            /**
+             * Add a message to the chat area.
+             * For AI responses, parses and displays thinking tags separately.
+             */
+            function addMessageToChat(message, className, isAIResponse = false) {
                 const messageId = "msg-" + Date.now();
-                const messageDiv = document.createElement("div");
-                messageDiv.id = messageId;
-                messageDiv.className = `message ${className}`;
-                messageDiv.textContent = message;
-                chatArea.appendChild(messageDiv);
+
+                if (isAIResponse) {
+                    // Parse thinking tags from AI response
+                    const parsed = parseThinkingTags(message);
+
+                    // Add thinking blocks first (if any)
+                    parsed.thinking.forEach((thinkingContent, index) => {
+                        const thinkingDiv = createThinkingBlock(
+                            thinkingContent,
+                            `thinking-${messageId}-${index}`
+                        );
+                        chatArea.appendChild(thinkingDiv);
+                    });
+
+                    // Add regular response (if there's content after removing thinking tags)
+                    if (parsed.response) {
+                        const messageDiv = document.createElement("div");
+                        messageDiv.id = messageId;
+                        messageDiv.className = `message ${className}`;
+                        messageDiv.textContent = parsed.response;
+                        chatArea.appendChild(messageDiv);
+                    }
+                } else {
+                    // Regular message (user or system)
+                    const messageDiv = document.createElement("div");
+                    messageDiv.id = messageId;
+                    messageDiv.className = `message ${className}`;
+                    messageDiv.textContent = message;
+                    chatArea.appendChild(messageDiv);
+                }
+
                 chatArea.scrollTop = chatArea.scrollHeight;
                 return messageId;
             }
@@ -486,19 +710,27 @@ Total tokens: ${data.usage.total_tokens}`;
 
             // Fetch models dynamically from the server
             async function fetchModels() {
+                // Remove the loading message
+                const loadingIndicator = document.getElementById('loading-indicator');
+                if (loadingIndicator) {
+                    loadingIndicator.remove();
+                }
+
                 try {
                     const response = await fetch('/v1/models');
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
                     }
-                    
+
                     const data = await response.json();
                     const models = data.data.map(m => m.id);
-                    
+
                     if (models && models.length > 0) {
-                        // Clear existing options
-                        modelSelect.innerHTML = '';
-                        
+                        // Clear existing options using safe DOM method
+                        while (modelSelect.firstChild) {
+                            modelSelect.removeChild(modelSelect.firstChild);
+                        }
+
                         // Add new options
                         models.forEach(model => {
                             const option = document.createElement('option');
@@ -506,45 +738,47 @@ Total tokens: ${data.usage.total_tokens}`;
                             option.textContent = model;
                             modelSelect.appendChild(option);
                         });
-                        
+
                         // Update model count
-                        document.getElementById('server-models').textContent = 
+                        document.getElementById('server-models').textContent =
                             `${models.length} models available`;
-                        
+
                         // Enable chat input
                         chatInput.disabled = false;
                         sendButton.disabled = false;
-                        
+
                         // Show success message
                         const infoDiv = document.createElement('div');
                         infoDiv.className = 'message assistant-message';
-                        infoDiv.textContent = `Found ${models.length} models. Select a model to start chatting.`;
+                        infoDiv.textContent = `✓ Found ${models.length} models. Select a model to start chatting.`;
                         chatArea.appendChild(infoDiv);
                         chatArea.scrollTop = chatArea.scrollHeight;
+                    } else {
+                        throw new Error('No models found');
                     }
                 } catch (error) {
                     console.error('Failed to fetch models:', error);
-                    
-                    const errorDiv = document.createElement('div');
-                    errorDiv.className = 'message error';
-                    errorDiv.textContent = `Failed to load models: ${error.message}`;
-                    chatArea.appendChild(errorDiv);
+
+                    // Show prominent error banner using safe DOM method
+                    const errorBanner = createErrorBanner(error.message);
+                    chatArea.appendChild(errorBanner);
                     chatArea.scrollTop = chatArea.scrollHeight;
+
+                    // Log to debug panel
+                    debugInfo.textContent += `\n\nError loading models: ${error.message}`;
                 }
             }
 
             // Initial scroll
             scrollChatToBottom();
-            
+
             // Fetch models when page loads
             document.addEventListener('DOMContentLoaded', function() {
-                // Add loading message
-                const loadingDiv = document.createElement('div');
-                loadingDiv.className = 'message assistant-message';
-                loadingDiv.textContent = 'Loading available models...';
+                // Add loading indicator with spinner using safe DOM method
+                const loadingDiv = createLoadingIndicator();
                 chatArea.appendChild(loadingDiv);
                 chatArea.scrollTop = chatArea.scrollHeight;
-                
+
                 // Fetch models after brief delay
                 setTimeout(fetchModels, 500);
             });

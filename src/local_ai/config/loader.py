@@ -12,11 +12,9 @@ from pathlib import Path
 from typing import Any
 
 from local_ai.config.schema import (
-    GenerationConfig,
     LocalAISettings,
     ModelConfig,
     ServerConfig,
-    _default_generation_config,
     _default_server_config,
 )
 from local_ai.logging import get_logger
@@ -144,16 +142,9 @@ def load_config(
         model_dict["path"] = model_path
     model_config = ModelConfig(**model_dict)
 
-    # Build generation config from TOML
-    generation_dict = toml_config.get("generation", {})
-    generation_config = (
-        GenerationConfig(**generation_dict) if generation_dict else _default_generation_config()
-    )
-
     settings = LocalAISettings(
         server=server_config,
         model=model_config,
-        generation=generation_config,
     )
     model_info = model_path if model_path else "no specific model (dynamic loading)"
     _logger.info(

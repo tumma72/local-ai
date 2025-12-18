@@ -5,12 +5,13 @@ Searches HuggingFace Hub for MLX-optimized models compatible with Apple Silicon.
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
-
-from huggingface_hub import HfApi, ModelInfo
+from typing import TYPE_CHECKING, Literal
 
 from local_ai.logging import get_logger
 from local_ai.models.schema import ModelSearchResult
+
+if TYPE_CHECKING:
+    from huggingface_hub import ModelInfo
 
 _logger = get_logger("Models.huggingface")
 
@@ -82,6 +83,8 @@ def search_models(
     Returns:
         List of ModelSearchResult sorted by relevance.
     """
+    from huggingface_hub import HfApi
+
     api = HfApi()
     results: list[ModelSearchResult] = []
     seen_ids: set[str] = set()
@@ -158,6 +161,8 @@ def search_models_enhanced(
     Returns:
         SearchResults with top_models and mlx_models lists.
     """
+    from huggingface_hub import HfApi
+
     api = HfApi()
     seen_ids: set[str] = set()
 
@@ -242,6 +247,8 @@ def get_model_info(model_id: str) -> ModelSearchResult | None:
     Returns:
         ModelSearchResult or None if not found.
     """
+    from huggingface_hub import HfApi
+
     api = HfApi()
 
     try:

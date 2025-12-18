@@ -15,7 +15,6 @@ import pytest
 from pydantic import ValidationError
 
 from local_ai.config.schema import (
-    GenerationConfig,
     LocalAISettings,
     ModelConfig,
     ServerConfig,
@@ -70,7 +69,6 @@ class TestRequiredFields:
 
     def test_local_ai_settings_accepts_model(self) -> None:
         """LocalAISettings should accept and store model when provided."""
-        from local_ai.config.schema import ModelConfig
         settings = LocalAISettings(model=ModelConfig(path="test-model"))
         assert settings.model.path == "test-model"
 
@@ -127,116 +125,6 @@ class TestValueConstraints:
         config = ServerConfig(log_level=valid_log_level)
         assert config.log_level == valid_log_level
 
-    @pytest.mark.parametrize(
-        "invalid_max_tokens",
-        [0, -1, 32769, 100000],
-        ids=["zero", "negative", "above_max", "far_above_max"],
-    )
-    def test_generation_config_rejects_invalid_max_tokens(
-        self, invalid_max_tokens: int
-    ) -> None:
-        """GenerationConfig must reject max_tokens outside valid range [1, 32768]."""
-        with pytest.raises(ValidationError) as exc_info:
-            GenerationConfig(max_tokens=invalid_max_tokens)
-
-        errors = exc_info.value.errors()
-        assert any(error["loc"] == ("max_tokens",) for error in errors)
-
-    @pytest.mark.parametrize("valid_max_tokens", [1, 4096, 32768])
-    def test_generation_config_accepts_valid_max_tokens(self, valid_max_tokens: int) -> None:
-        """GenerationConfig should accept max_tokens within valid range [1, 32768]."""
-        config = GenerationConfig(max_tokens=valid_max_tokens)
-        assert config.max_tokens == valid_max_tokens
-
-    @pytest.mark.parametrize(
-        "invalid_temperature",
-        [-0.1, -1.0, 2.1, 3.0],
-        ids=["slightly_negative", "negative", "above_max", "far_above_max"],
-    )
-    def test_generation_config_rejects_invalid_temperatures(
-        self, invalid_temperature: float
-    ) -> None:
-        """GenerationConfig must reject temperature outside valid range [0.0, 2.0]."""
-        with pytest.raises(ValidationError) as exc_info:
-            GenerationConfig(temperature=invalid_temperature)
-
-        errors = exc_info.value.errors()
-        assert any(error["loc"] == ("temperature",) for error in errors)
-
-    @pytest.mark.parametrize("valid_temperature", [0.0, 0.7, 1.0, 2.0])
-    def test_generation_config_accepts_valid_temperatures(
-        self, valid_temperature: float
-    ) -> None:
-        """GenerationConfig should accept temperature within valid range [0.0, 2.0]."""
-        config = GenerationConfig(temperature=valid_temperature)
-        assert config.temperature == valid_temperature
-
-    @pytest.mark.parametrize(
-        "invalid_top_p",
-        [-0.1, -1.0, 1.1, 2.0],
-        ids=["slightly_negative", "negative", "above_max", "far_above_max"],
-    )
-    def test_generation_config_rejects_invalid_top_p(self, invalid_top_p: float) -> None:
-        """GenerationConfig must reject top_p outside valid range [0.0, 1.0]."""
-        with pytest.raises(ValidationError) as exc_info:
-            GenerationConfig(top_p=invalid_top_p)
-
-        errors = exc_info.value.errors()
-        assert any(error["loc"] == ("top_p",) for error in errors)
-
-    @pytest.mark.parametrize("valid_top_p", [0.0, 0.9, 1.0])
-    def test_generation_config_accepts_valid_top_p(self, valid_top_p: float) -> None:
-        """GenerationConfig should accept top_p within valid range [0.0, 1.0]."""
-        config = GenerationConfig(top_p=valid_top_p)
-        assert config.top_p == valid_top_p
-
-    @pytest.mark.parametrize(
-        "invalid_min_p",
-        [-0.1, -1.0, 1.1, 2.0],
-        ids=["slightly_negative", "negative", "above_max", "far_above_max"],
-    )
-    def test_generation_config_rejects_invalid_min_p(self, invalid_min_p: float) -> None:
-        """GenerationConfig must reject min_p outside valid range [0.0, 1.0]."""
-        with pytest.raises(ValidationError) as exc_info:
-            GenerationConfig(min_p=invalid_min_p)
-
-        errors = exc_info.value.errors()
-        assert any(error["loc"] == ("min_p",) for error in errors)
-
-    @pytest.mark.parametrize("valid_min_p", [0.0, 0.1, 1.0])
-    def test_generation_config_accepts_valid_min_p(self, valid_min_p: float) -> None:
-        """GenerationConfig should accept min_p within valid range [0.0, 1.0]."""
-        config = GenerationConfig(min_p=valid_min_p)
-        assert config.min_p == valid_min_p
-
-    def test_generation_config_rejects_negative_top_k(self) -> None:
-        """GenerationConfig must reject negative top_k values."""
-        with pytest.raises(ValidationError) as exc_info:
-            GenerationConfig(top_k=-1)
-
-        errors = exc_info.value.errors()
-        assert any(error["loc"] == ("top_k",) for error in errors)
-
-    @pytest.mark.parametrize("valid_top_k", [0, 10, 50, 100])
-    def test_generation_config_accepts_valid_top_k(self, valid_top_k: int) -> None:
-        """GenerationConfig should accept non-negative top_k values."""
-        config = GenerationConfig(top_k=valid_top_k)
-        assert config.top_k == valid_top_k
-
-
-class TestGenerationConfigDefaults:
-    """Verify GenerationConfig applies correct default values."""
-
-    def test_creates_with_all_defaults(self) -> None:
-        """GenerationConfig should initialize with sensible defaults when no values provided."""
-        config = GenerationConfig()
-
-        assert config.max_tokens == 4096
-        assert config.temperature == 0.0
-        assert config.top_p == 1.0
-        assert config.top_k == 0
-        assert config.min_p == 0.0
-
 
 class TestCompleteConfiguration:
     """Verify LocalAISettings accepts valid complete configurations."""
@@ -253,7 +141,6 @@ class TestCompleteConfiguration:
         # Sub-configs use defaults
         assert settings.server.host == "127.0.0.1"
         assert settings.server.port == 8080
-        assert settings.generation.max_tokens == 4096
 
     def test_complete_valid_configuration(self) -> None:
         """LocalAISettings should accept fully specified valid configuration."""
@@ -263,13 +150,6 @@ class TestCompleteConfiguration:
                 path="mlx-community/test-model",
                 adapter_path=Path("/path/to/adapter"),
                 trust_remote_code=True,
-            ),
-            generation=GenerationConfig(
-                max_tokens=2048,
-                temperature=0.7,
-                top_p=0.9,
-                top_k=50,
-                min_p=0.05,
             ),
         )
 
@@ -283,9 +163,9 @@ class TestCompleteConfiguration:
         assert settings.model.adapter_path == Path("/path/to/adapter")
         assert settings.model.trust_remote_code is True
 
-        # Generation config
-        assert settings.generation.max_tokens == 2048
-        assert settings.generation.temperature == 0.7
-        assert settings.generation.top_p == 0.9
-        assert settings.generation.top_k == 50
-        assert settings.generation.min_p == 0.05
+    def test_settings_does_not_have_generation_config(self) -> None:
+        """LocalAISettings should not have generation config (client-side concern)."""
+        settings = LocalAISettings()
+
+        # Verify generation is not an attribute
+        assert not hasattr(settings, "generation")

@@ -5,9 +5,8 @@ These tests use real external dependencies but with controlled inputs.
 """
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
 from typer.testing import CliRunner
 
 from local_ai.cli.main import app
@@ -61,7 +60,7 @@ class TestModelsWorkflow:
             return 2_000_000_000
 
         with patch(
-            "local_ai.cli.models.snapshot_download", return_value=str(mock_cache_path)
+            "huggingface_hub.snapshot_download", return_value=str(mock_cache_path)
         ), patch(
             "local_ai.cli.models.get_local_model_size", side_effect=get_size_side_effect
         ):

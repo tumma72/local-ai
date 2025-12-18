@@ -10,8 +10,7 @@ Tests mock external dependencies (HuggingFace Hub, mlx_lm) for isolation.
 Tests focus on CLI output, exit codes, and user-facing behavior.
 """
 
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner
@@ -285,7 +284,7 @@ class TestModelsDownloadCommand:
             return 4_000_000_000
 
         with patch(
-            "local_ai.cli.models.snapshot_download", return_value=mock_cache_path
+            "huggingface_hub.snapshot_download", return_value=mock_cache_path
         ), patch(
             "local_ai.cli.models.get_local_model_size", side_effect=get_size_side_effect
         ):
@@ -307,7 +306,7 @@ class TestModelsDownloadCommand:
         with patch(
             "local_ai.cli.models.get_local_model_size", return_value=4_000_000_000
         ), patch(
-            "local_ai.cli.models.snapshot_download", return_value=mock_cache_path
+            "huggingface_hub.snapshot_download", return_value=mock_cache_path
         ):
             result = cli_runner.invoke(
                 app, ["models", "download", "mlx-community/Qwen3-8B-4bit", "--force"]

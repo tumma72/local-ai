@@ -27,6 +27,8 @@ class BenchmarkMode(str, Enum):
 class TestResults(BaseModel):
     """Results from running tests on generated code."""
 
+    __test__ = False  # Prevent pytest from collecting this as a test class
+
     passed: int = Field(ge=0, description="Number of tests passed")
     failed: int = Field(ge=0, description="Number of tests failed")
     errors: int = Field(ge=0, description="Number of tests with errors")
