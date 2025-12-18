@@ -1,9 +1,19 @@
 [project]
 name = "local-ai"
-version = "0.1.0"
-description = "Offline AI coding assistant for Apple Silicon"
+version = "0.2.0a0"
+description = "Offline AI coding assistant for Apple Silicon. Run LLMs locally with OpenAI-compatible API."
 readme = "README.md"
+license = {text = "Apache-2.0"}
 requires-python = ">=3.14"
+keywords = ["ai", "llm", "mlx", "apple-silicon", "openai", "local", "offline"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
     "httpx>=0.28.1",
     "huggingface-hub>=0.28.0",
@@ -19,6 +29,11 @@ dependencies = [
     "transformers>=4.57.3",
     "typer>=0.20.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/tumma72/local-ai"
+Repository = "https://github.com/tumma72/local-ai"
+Issues = "https://github.com/tumma72/local-ai/issues"
 
 [project.scripts]
 local-ai = "local_ai.cli.main:app"
@@ -42,6 +57,17 @@ allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/local_ai"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/",
+    "lib/",
+    "tests/",
+    "README.md",
+    "LICENSE.md",
+    "CONTRIBUTING.md",
+    "pyproject.toml",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

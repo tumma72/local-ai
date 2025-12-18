@@ -3,7 +3,9 @@
 Provides subcommands for managing the MLX LM server:
 - start: Start the server
 - stop: Stop the server
+- restart: Restart the server
 - status: Show server status
+- logs: View server logs
 """
 
 import subprocess
@@ -134,6 +136,92 @@ def stop(
     else:
         _logger.error("Failed to stop server: {}", result.error)
         console.print(f"[red]:heavy_multiplication_x: Error: {result.error}[/red]")
+        raise typer.Exit(code=1)
+
+
+@server_app.command()
+def restart(
+    model: Annotated[
+        str | None,
+        typer.Option(
+            "--model",
+            "-m",
+            help="Model path or name (optional - MLX Omni Server loads models dynamically)",
+        ),
+    ] = None,
+    port: Annotated[int | None, typer.Option("--port", "-p", help="Server port")] = None,
+    host: Annotated[str | None, typer.Option("--host", "-h", help="Server host")] = None,
+    config: Annotated[Path | None, typer.Option("--config", "-c", help="Config file path")] = None,
+    startup_timeout: Annotated[
+        float, typer.Option("--timeout", "-t", help="Startup timeout in seconds")
+    ] = 30.0,
+    log_level: Annotated[str, typer.Option("--log-level", "-l", help="Log level")] = "INFO",
+) -> None:
+    """Restart the local-ai server.
+
+    Stops the server if running, then starts it with the specified configuration.
+    Equivalent to running 'local-ai server stop && local-ai server start'.
+
+    Note: Model is optional because MLX Omni Server loads models dynamically.
+    Models are specified in API requests rather than at server startup.
+    """
+    configure_logging(log_level=log_level, console=False)
+    _logger.info(
+        "CLI restart command: model={}, port={}, host={}, config={}",
+        model,
+        port,
+        host,
+        config,
+    )
+
+    # First, stop the server if it's running
+    stop_manager = ServerManager()
+    stop_result = stop_manager.stop()
+
+    if stop_result.success:
+        _logger.info("Server stopped for restart")
+        console.print("[cyan]Server stopped, restarting...[/cyan]")
+    elif "not running" in (stop_result.error or "").lower():
+        # Server wasn't running - that's fine for restart
+        _logger.info("Server was not running, starting fresh")
+        console.print("[cyan]Server was not running, starting...[/cyan]")
+    else:
+        # Actual error stopping
+        _logger.error("Failed to stop server for restart: {}", stop_result.error)
+        console.print(
+            f"[red]:heavy_multiplication_x: Error stopping server: {stop_result.error}[/red]"
+        )
+        raise typer.Exit(code=1)
+
+    # Now start the server
+    settings = load_config(config_path=config, model=model, port=port, host=host)
+    start_manager = ServerManager(settings)
+
+    model_info = (
+        f"model: {settings.model.path}"
+        if settings.model.path
+        else "no specific model (dynamic loading)"
+    )
+    console.print(f"[cyan]Starting server with {model_info}...[/cyan]")
+
+    start_result = start_manager.start(startup_timeout=startup_timeout)
+
+    if start_result.success:
+        port_num = settings.server.port
+        _logger.info("Server restarted successfully on port {}", port_num)
+        console.print(f"[green]:heavy_check_mark: Server restarted on port {port_num}[/green]")
+    else:
+        _logger.error("Failed to start server during restart: {}", start_result.error)
+        error_lines = (start_result.error or "Unknown error").split("\n")
+        if len(error_lines) > 1:
+            panel = Panel(
+                start_result.error or "Unknown error",
+                title="[bold red]Server Restart Failed[/bold red]",
+                border_style="red",
+            )
+            console.print(panel)
+        else:
+            console.print(f"[red]:heavy_multiplication_x: Error: {start_result.error}[/red]")
         raise typer.Exit(code=1)
 
 

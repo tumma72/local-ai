@@ -4,6 +4,18 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>local-ai Server - Welcome</title>
+        <!-- Markdown rendering libraries -->
+        <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js" defer></script>
+        <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js" defer></script>
+        <!-- Syntax highlighting -->
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11/styles/github-dark.min.css">
+        <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/core.min.js" defer></script>
+        <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/languages/python.min.js" defer></script>
+        <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/languages/javascript.min.js" defer></script>
+        <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/languages/typescript.min.js" defer></script>
+        <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/languages/bash.min.js" defer></script>
+        <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/languages/json.min.js" defer></script>
+        <script src="https://cdn.jsdelivr.net/npm/highlight.js@11/lib/languages/xml.min.js" defer></script>
         <style>
             * {
                 margin: 0;
@@ -51,79 +63,49 @@
             .content {
                 padding: 2rem;
                 display: grid;
-                grid-template-columns: 1fr 1fr;
+                grid-template-columns: 340px 1fr;
                 gap: 2rem;
+                min-height: calc(100vh - 200px);
             }
 
-            .server-status {
+            /* Config Panel (Left Side) */
+            .config-panel {
                 background: #f8f9fa;
                 border-radius: 8px;
                 padding: 1.5rem;
                 border: 1px solid #e9ecef;
+                height: fit-content;
+                position: sticky;
+                top: 2rem;
             }
 
-            .server-status h2 {
+            .config-panel h2 {
                 color: #667eea;
-                margin-bottom: 1.5rem;
-                font-size: 1.5rem;
+                margin-bottom: 1rem;
+                font-size: 1.25rem;
             }
 
-            .status-grid {
-                display: grid;
-                grid-template-columns: repeat(2, 1fr);
-                gap: 1rem;
-            }
-
-            .status-item {
-                padding: 0.75rem;
-                border-radius: 6px;
-                background: white;
-            }
-
-            .status-item strong {
-                display: block;
+            .config-panel p {
                 color: #6c757d;
-                font-size: 0.85rem;
-                margin-bottom: 0.25rem;
+                font-size: 0.9rem;
+                margin-bottom: 1rem;
             }
 
-            .status-item span {
-                font-size: 1rem;
-                color: #495057;
-            }
-
-            .status-health {
-                grid-column: span 2;
-                text-align: center;
-                padding: 1rem;
-            }
-
-            .health-healthy {
-                background: #d4edda;
-                color: #155724;
-            }
-
-            .health-unhealthy {
-                background: #f8d7da;
-                color: #721c24;
-            }
-
-            .health-unknown {
-                background: #fff3cd;
-                color: #856404;
-            }
-
-            .model-tester {
+            /* Chat Container (Right Side) */
+            .chat-container {
                 background: #f8f9fa;
                 border-radius: 8px;
                 padding: 1.5rem;
                 border: 1px solid #e9ecef;
+                display: flex;
+                flex-direction: column;
+                min-height: 500px;
             }
 
-            .model-tester h2 {
+            .chat-container h2 {
                 color: #764ba2;
-                margin-bottom: 1.5rem;
-                font-size: 1.5rem;
+                margin-bottom: 1rem;
+                font-size: 1.25rem;
             }
 
             .model-selector {
@@ -148,7 +130,8 @@
             }
 
             .chat-area {
-                height: 300px;
+                flex: 1;
+                min-height: 400px;
                 border: 1px solid #ced4da;
                 border-radius: 6px;
                 padding: 1rem;
@@ -322,6 +305,621 @@
                 word-wrap: break-word;
             }
 
+            /* Settings Panel - collapsible */
+            .settings-panel {
+                margin-bottom: 1rem;
+                background: #fff;
+                border: 1px solid #e9ecef;
+                border-radius: 6px;
+            }
+
+            .settings-toggle {
+                cursor: pointer;
+                color: #495057;
+                padding: 0.75rem 1rem;
+                display: flex;
+                align-items: center;
+                font-size: 0.9rem;
+                font-weight: 500;
+                user-select: none;
+            }
+
+            .settings-toggle:hover {
+                background: #f8f9fa;
+            }
+
+            .settings-content {
+                padding: 1rem;
+                border-top: 1px solid #e9ecef;
+            }
+
+            .settings-content.collapsed {
+                display: none;
+            }
+
+            .param-group {
+                margin-bottom: 1rem;
+            }
+
+            .param-group:last-of-type {
+                margin-bottom: 0.5rem;
+            }
+
+            .param-group label {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 0.5rem;
+                font-weight: 500;
+                color: #495057;
+                font-size: 0.9rem;
+            }
+
+            .param-value {
+                font-family: "SFMono-Regular", Consolas, monospace;
+                color: #667eea;
+                font-weight: 600;
+            }
+
+            .param-group input[type="range"] {
+                width: 100%;
+                height: 6px;
+                border-radius: 3px;
+                background: #e9ecef;
+                appearance: none;
+                cursor: pointer;
+            }
+
+            .param-group input[type="range"]::-webkit-slider-thumb {
+                appearance: none;
+                width: 16px;
+                height: 16px;
+                border-radius: 50%;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                cursor: pointer;
+            }
+
+            .param-group input[type="number"] {
+                width: 100%;
+                padding: 0.5rem;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                font-size: 0.9rem;
+            }
+
+            .param-hint {
+                display: block;
+                font-size: 0.75rem;
+                color: #6c757d;
+                margin-top: 0.25rem;
+            }
+
+            .reset-params-btn {
+                width: 100%;
+                padding: 0.5rem;
+                margin-top: 0.5rem;
+                background: #f8f9fa;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                color: #495057;
+                font-size: 0.85rem;
+                cursor: pointer;
+            }
+
+            .reset-params-btn:hover {
+                background: #e9ecef;
+            }
+
+            /* System Prompt Panel */
+            .system-prompt-panel {
+                margin-bottom: 1rem;
+                background: #fff;
+                border: 1px solid #e9ecef;
+                border-radius: 6px;
+                padding: 1rem;
+            }
+
+            .system-prompt-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 0.75rem;
+            }
+
+            .system-prompt-header label {
+                font-weight: 500;
+                color: #495057;
+                font-size: 0.9rem;
+            }
+
+            .system-prompt-header select {
+                padding: 0.5rem;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                font-size: 0.85rem;
+                background: white;
+                cursor: pointer;
+                min-width: 160px;
+            }
+
+            .system-prompt-preview {
+                font-size: 0.85rem;
+                color: #6c757d;
+                padding: 0.75rem;
+                background: #f8f9fa;
+                border-radius: 4px;
+                max-height: 80px;
+                overflow-y: auto;
+                font-style: italic;
+            }
+
+            .system-prompt-preview:empty {
+                display: none;
+            }
+
+            .system-prompt-custom {
+                width: 100%;
+                min-height: 80px;
+                padding: 0.75rem;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                font-size: 0.9rem;
+                font-family: inherit;
+                resize: vertical;
+                margin-top: 0.75rem;
+            }
+
+            .system-prompt-custom.collapsed {
+                display: none;
+            }
+
+            .system-prompt-custom:focus {
+                outline: none;
+                border-color: #667eea;
+                box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+            }
+
+            /* Markdown rendering styles */
+            .message-content {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                line-height: 1.6;
+            }
+
+            .message-content p {
+                margin: 0 0 0.75rem 0;
+            }
+
+            .message-content p:last-child {
+                margin-bottom: 0;
+            }
+
+            .message-content code {
+                font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+                background: #f1f3f4;
+                padding: 0.15rem 0.4rem;
+                border-radius: 3px;
+                font-size: 0.85em;
+            }
+
+            .message-content pre {
+                margin: 0.75rem 0;
+                border-radius: 6px;
+                overflow-x: auto;
+                background: #1e1e1e;
+            }
+
+            .message-content pre code {
+                display: block;
+                background: transparent;
+                padding: 1rem;
+                color: #d4d4d4;
+                font-size: 0.85rem;
+                line-height: 1.5;
+            }
+
+            /* Code block wrapper with language label */
+            .code-block-wrapper {
+                position: relative;
+                margin: 0.75rem 0;
+            }
+
+            .code-block-lang {
+                position: absolute;
+                top: 0;
+                right: 0;
+                padding: 0.25rem 0.5rem;
+                font-size: 0.7rem;
+                color: #888;
+                background: #2d2d2d;
+                border-radius: 0 6px 0 4px;
+                text-transform: uppercase;
+            }
+
+            .code-block-copy {
+                position: absolute;
+                top: 0.25rem;
+                right: 3.5rem;
+                padding: 0.25rem 0.5rem;
+                font-size: 0.7rem;
+                color: #888;
+                background: #2d2d2d;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                opacity: 0;
+                transition: opacity 0.2s;
+            }
+
+            .code-block-wrapper:hover .code-block-copy {
+                opacity: 1;
+            }
+
+            .code-block-copy:hover {
+                color: #fff;
+            }
+
+            .message-content ul,
+            .message-content ol {
+                margin: 0.5rem 0;
+                padding-left: 1.5rem;
+            }
+
+            .message-content li {
+                margin-bottom: 0.25rem;
+            }
+
+            .message-content table {
+                border-collapse: collapse;
+                margin: 0.75rem 0;
+                width: 100%;
+                font-size: 0.9rem;
+            }
+
+            .message-content th,
+            .message-content td {
+                border: 1px solid #ddd;
+                padding: 0.5rem;
+                text-align: left;
+            }
+
+            .message-content th {
+                background: #f8f9fa;
+                font-weight: 600;
+            }
+
+            .message-content blockquote {
+                margin: 0.75rem 0;
+                padding: 0.5rem 1rem;
+                border-left: 4px solid #667eea;
+                background: #f8f9fa;
+                color: #495057;
+            }
+
+            .message-content a {
+                color: #667eea;
+                text-decoration: none;
+            }
+
+            .message-content a:hover {
+                text-decoration: underline;
+            }
+
+            .message-content hr {
+                margin: 1rem 0;
+                border: none;
+                border-top: 1px solid #e9ecef;
+            }
+
+            .user-message .message-content code {
+                background: #ddd;
+            }
+
+            /* Tool Mode Toggle */
+            .tool-toggle {
+                display: flex;
+                align-items: center;
+                gap: 0.75rem;
+                margin: 1rem 0;
+                padding: 0.75rem;
+                background: #f0f4f8;
+                border-radius: 6px;
+                border: 1px solid #e2e8f0;
+            }
+
+            .toggle-switch {
+                position: relative;
+                width: 48px;
+                height: 24px;
+            }
+
+            .toggle-switch input {
+                opacity: 0;
+                width: 0;
+                height: 0;
+            }
+
+            .toggle-slider {
+                position: absolute;
+                cursor: pointer;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background-color: #cbd5e0;
+                transition: 0.3s;
+                border-radius: 24px;
+            }
+
+            .toggle-slider:before {
+                position: absolute;
+                content: "";
+                height: 18px;
+                width: 18px;
+                left: 3px;
+                bottom: 3px;
+                background-color: white;
+                transition: 0.3s;
+                border-radius: 50%;
+            }
+
+            input:checked + .toggle-slider {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            }
+
+            input:checked + .toggle-slider:before {
+                transform: translateX(24px);
+            }
+
+            .toggle-label {
+                display: flex;
+                flex-direction: column;
+                gap: 0.25rem;
+            }
+
+            #tool-mode-status {
+                font-weight: 600;
+                color: #4a5568;
+            }
+
+            .tool-hint {
+                font-size: 0.8rem;
+                color: #718096;
+            }
+
+            /* Tool Panel */
+            .tool-panel {
+                margin: 0.5rem 0 1rem 0;
+                padding: 1rem;
+                background: #fff;
+                border: 1px solid #e2e8f0;
+                border-radius: 6px;
+            }
+
+            .tool-panel.collapsed {
+                display: none;
+            }
+
+            .tool-panel-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 0.75rem;
+            }
+
+            .select-all-btn {
+                font-size: 0.8rem;
+                padding: 0.25rem 0.5rem;
+                background: transparent;
+                border: 1px solid #667eea;
+                color: #667eea;
+                border-radius: 4px;
+                cursor: pointer;
+            }
+
+            .select-all-btn:hover {
+                background: #667eea;
+                color: white;
+            }
+
+            .tool-list {
+                display: flex;
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+
+            .tool-item {
+                display: flex;
+                align-items: flex-start;
+                gap: 0.5rem;
+                padding: 0.5rem;
+                background: #f8fafc;
+                border-radius: 4px;
+            }
+
+            .tool-item input[type="checkbox"] {
+                margin-top: 0.25rem;
+            }
+
+            .tool-item-info {
+                flex: 1;
+            }
+
+            .tool-item-name {
+                font-weight: 500;
+                color: #2d3748;
+                font-family: monospace;
+            }
+
+            .tool-item-desc {
+                font-size: 0.8rem;
+                color: #718096;
+                margin-top: 0.25rem;
+            }
+
+            /* Tool Call Block */
+            .tool-call-block {
+                background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+                border-left: 4px solid #f59e0b;
+                padding: 1rem;
+                margin-bottom: 0.75rem;
+                border-radius: 0 6px 6px 0;
+            }
+
+            .tool-call-header {
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                margin-bottom: 0.5rem;
+                font-weight: 600;
+                color: #92400e;
+            }
+
+            .tool-call-name {
+                font-family: monospace;
+                background: rgba(255,255,255,0.5);
+                padding: 0.125rem 0.375rem;
+                border-radius: 3px;
+            }
+
+            .tool-call-args {
+                background: rgba(255,255,255,0.7);
+                padding: 0.5rem;
+                border-radius: 4px;
+                font-family: monospace;
+                font-size: 0.8rem;
+                white-space: pre-wrap;
+                word-wrap: break-word;
+            }
+
+            /* Tool Result Block */
+            .tool-result-block {
+                background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+                border-left: 4px solid #10b981;
+                padding: 1rem;
+                margin-bottom: 0.75rem;
+                border-radius: 0 6px 6px 0;
+            }
+
+            .tool-result-header {
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                margin-bottom: 0.5rem;
+                font-weight: 600;
+                color: #065f46;
+            }
+
+            .tool-result-content {
+                background: rgba(255,255,255,0.7);
+                padding: 0.5rem;
+                border-radius: 4px;
+                font-family: monospace;
+                font-size: 0.8rem;
+                white-space: pre-wrap;
+                word-wrap: break-word;
+            }
+
+            /* Tool Error Block */
+            .tool-error-block {
+                background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+                border-left: 4px solid #ef4444;
+                padding: 1rem;
+                margin-bottom: 0.75rem;
+                border-radius: 0 6px 6px 0;
+            }
+
+            .tool-error-header {
+                color: #991b1b;
+            }
+
+            /* Clear Chat Button */
+            .clear-chat-btn {
+                padding: 0.5rem 1rem;
+                background: transparent;
+                border: 1px solid #dc3545;
+                color: #dc3545;
+                border-radius: 4px;
+                font-size: 0.85rem;
+                cursor: pointer;
+                margin-left: 0.5rem;
+            }
+
+            .clear-chat-btn:hover {
+                background: #dc3545;
+                color: white;
+            }
+
+            /* Export Button */
+            .export-btn {
+                padding: 0.5rem 1rem;
+                background: transparent;
+                border: 1px solid #667eea;
+                color: #667eea;
+                border-radius: 4px;
+                font-size: 0.85rem;
+                cursor: pointer;
+                margin-left: 0.5rem;
+            }
+
+            .export-btn:hover {
+                background: #667eea;
+                color: white;
+            }
+
+            /* Toast Notification */
+            .toast {
+                position: fixed;
+                bottom: 2rem;
+                left: 50%;
+                transform: translateX(-50%);
+                background: #333;
+                color: white;
+                padding: 0.75rem 1.5rem;
+                border-radius: 6px;
+                font-size: 0.9rem;
+                z-index: 1000;
+                opacity: 0;
+                transition: opacity 0.3s ease;
+                pointer-events: none;
+            }
+
+            .toast.visible {
+                opacity: 1;
+            }
+
+            /* Tool Status Block (when tools not called) */
+            .tool-status-block {
+                background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+                border-left: 4px solid #6366f1;
+                padding: 1rem;
+                margin-bottom: 0.75rem;
+                border-radius: 0 6px 6px 0;
+            }
+
+            .tool-status-header {
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                margin-bottom: 0.5rem;
+                font-weight: 600;
+                color: #4338ca;
+            }
+
+            .tool-status-content {
+                font-size: 0.85rem;
+                color: #4338ca;
+                line-height: 1.5;
+            }
+
+            .tool-status-tip {
+                margin-top: 0.5rem;
+                padding-top: 0.5rem;
+                border-top: 1px solid rgba(99, 102, 241, 0.3);
+                font-size: 0.8rem;
+                color: #6366f1;
+                font-style: italic;
+            }
+
             .footer {
                 text-align: center;
                 padding: 1.5rem;
@@ -350,57 +948,10 @@
             </div>
 
             <div class="content">
-                <div class="server-status">
-                    <h2>📊 Server Status</h2>
-                    <div class="status-grid">
-                        <div class="status-item">
-                            <strong>Host</strong>
-                            <span id="server-host"
-                                >{{ status.host or "N/A" }}</span
-                            >
-                        </div>
-                        <div class="status-item">
-                            <strong>Port</strong>
-                            <span id="server-port"
-                                >{{ status.port or "N/A" }}</span
-                            >
-                        </div>
-                        <div class="status-item">
-                            <strong>PID</strong>
-                            <span id="server-pid"
-                                >{{ status.pid or "N/A" }}</span
-                            >
-                        </div>
-                        <div class="status-item">
-                            <strong>Running</strong>
-                            <span id="server-running"
-                                >{{ "Yes" if status.running else "No" }}</span
-                            >
-                        </div>
-                        <div class="status-item" style="grid-column: span 2">
-                            <strong>Available Models</strong>
-                            <span id="server-models"
-                                >{{ models|length }} models available</span
-                            >
-                        </div>
-                        <div class="status-health">
-                            <strong>Health Status</strong>
-                            <div
-                                id="health-status"
-                                class="status-item {% if status.health == 'healthy' %}health-healthy {% elif status.health == 'unhealthy' %}health-unhealthy {% else %}health-unknown {% endif %}"
-                            >
-                                {{ status.health or "unknown" | upper }}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="model-tester">
-                    <h2>🧪 Model Tester</h2>
-                    <p style="margin-bottom: 1rem; color: #6c757d">
-                        Test available models directly in your browser before
-                        integrating with clients.
-                    </p>
+                <!-- Left Side: Model Configuration -->
+                <div class="config-panel">
+                    <h2>⚙️ Configuration</h2>
+                    <p>Select a model and configure parameters</p>
 
                     <div class="model-selector">
                         <label for="model-select">Select Model:</label>
@@ -415,6 +966,112 @@
                             {% endif %}
                         </select>
                     </div>
+
+                    <!-- Settings Panel - Model Parameters -->
+                    <div class="settings-panel">
+                        <div class="settings-toggle" onclick="toggleSettings()">
+                            <span id="settings-toggle-text">▶ Model Parameters</span>
+                        </div>
+                        <div class="settings-content collapsed" id="settings-panel">
+                            <div class="param-group">
+                                <label for="param-temperature">
+                                    Temperature
+                                    <span class="param-value" id="temp-value">0.7</span>
+                                </label>
+                                <input type="range" id="param-temperature"
+                                       min="0" max="2" step="0.1" value="0.7"
+                                       oninput="updateParam('temperature', this.value)">
+                                <span class="param-hint">Lower = more deterministic, Higher = more creative</span>
+                            </div>
+
+                            <div class="param-group">
+                                <label for="param-top-p">
+                                    Top P
+                                    <span class="param-value" id="top-p-value">1.0</span>
+                                </label>
+                                <input type="range" id="param-top-p"
+                                       min="0" max="1" step="0.05" value="1.0"
+                                       oninput="updateParam('top_p', this.value)">
+                                <span class="param-hint">Nucleus sampling threshold</span>
+                            </div>
+
+                            <div class="param-group">
+                                <label for="param-max-tokens">
+                                    Max Tokens
+                                    <span class="param-value" id="max-tokens-value">4096</span>
+                                </label>
+                                <input type="number" id="param-max-tokens"
+                                       min="1" max="32768" value="4096"
+                                       onchange="updateParam('max_tokens', this.value)">
+                                <span class="param-hint">Maximum response length</span>
+                            </div>
+
+                            <div class="param-group">
+                                <label for="param-seed">
+                                    Seed
+                                    <span class="param-value" id="seed-value">Random</span>
+                                </label>
+                                <input type="number" id="param-seed"
+                                       placeholder="Random"
+                                       onchange="updateParam('seed', this.value)">
+                                <span class="param-hint">For reproducible outputs (optional)</span>
+                            </div>
+
+                            <button class="reset-params-btn" onclick="resetParams()">
+                                Reset to Defaults
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- System Prompt Panel -->
+                    <div class="system-prompt-panel">
+                        <div class="system-prompt-header">
+                            <label for="system-prompt-select">System Prompt</label>
+                            <select id="system-prompt-select" onchange="handlePresetChange(this.value)">
+                                <option value="none">None (default)</option>
+                                <option value="coding">Coding Assistant</option>
+                                <option value="creative">Creative Writer</option>
+                                <option value="analyst">Data Analyst</option>
+                                <option value="concise">Concise Helper</option>
+                                <option value="custom">Custom...</option>
+                            </select>
+                        </div>
+                        <div class="system-prompt-preview" id="system-prompt-preview"></div>
+                        <textarea
+                            class="system-prompt-custom collapsed"
+                            id="system-prompt-custom"
+                            placeholder="Enter your custom system prompt..."
+                            oninput="updateCustomPrompt(this.value)"
+                        ></textarea>
+                    </div>
+
+                    <!-- Tool Mode Toggle -->
+                    <div class="tool-toggle" id="tool-toggle-container">
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="tool-mode-toggle" onchange="toggleToolMode(this.checked)">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span class="toggle-label">
+                            <span id="tool-mode-status">Tool Mode: Off</span>
+                            <span class="tool-hint" id="tool-hint">(Enable to test function calling)</span>
+                        </span>
+                    </div>
+
+                    <!-- Tool Selection Panel -->
+                    <div class="tool-panel collapsed" id="tool-panel">
+                        <div class="tool-panel-header">
+                            <strong>Available Tools</strong>
+                            <button class="select-all-btn" onclick="selectAllTools()">Select All</button>
+                        </div>
+                        <div class="tool-list" id="tool-list">
+                            <!-- Populated dynamically by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Side: Chat Window -->
+                <div class="chat-container">
+                    <h2>💬 Chat</h2>
 
                     <div class="chat-area" id="chat-area">
                         <div class="message assistant-message">
@@ -438,6 +1095,20 @@
                         >
                             Send
                         </button>
+                        <button
+                            class="export-btn"
+                            onclick="exportChat()"
+                            title="Copy chat transcript to clipboard"
+                        >
+                            Export
+                        </button>
+                        <button
+                            class="clear-chat-btn"
+                            onclick="clearConversation()"
+                            title="Clear chat history"
+                        >
+                            Clear
+                        </button>
                     </div>
 
                     <div class="debug-toggle" onclick="toggleDebug()">
@@ -445,12 +1116,13 @@
                     </div>
                     <div class="debug-info collapsed" id="debug-panel">
                         <strong>Debug Info:</strong>
-                        <pre id="debug-info">Server: {{ status.host }}:{{ status.port }}
-Models available: {{ models|length }}
-Status: {{ status.health or 'unknown' }}</pre>
+                        <pre id="debug-info">Models available: {{ models|length }}</pre>
                     </div>
                 </div>
             </div>
+
+            <!-- Toast notification -->
+            <div class="toast" id="toast"></div>
 
             <div class="footer">
                 <p>
@@ -471,6 +1143,842 @@ Status: {{ status.health or 'unknown' }}</pre>
             const sendButton = document.getElementById("send-button");
             const chatArea = document.getElementById("chat-area");
             const debugInfo = document.getElementById("debug-info");
+
+            // ==========================================
+            // State Management
+            // ==========================================
+
+            // Default parameters
+            const DEFAULT_PARAMS = {
+                temperature: 0.7,
+                top_p: 1.0,
+                max_tokens: 4096,
+                seed: null,
+            };
+
+            // Application state
+            const AppState = {
+                parameters: { ...DEFAULT_PARAMS },
+                systemPrompt: {
+                    preset: 'none',
+                    customText: '',
+                },
+                messages: [], // Conversation history for multi-turn
+            };
+
+            // System prompt presets
+            const SYSTEM_PROMPT_PRESETS = {
+                none: '',
+                coding: `You are an expert software developer. Provide clear, well-documented code with explanations. Follow best practices and consider edge cases. When appropriate, suggest improvements or alternatives.`,
+                creative: `You are a creative writing assistant with a vivid imagination. Use rich language, metaphors, and engaging storytelling techniques. Be expressive and help bring ideas to life.`,
+                analyst: `You are a data analyst and research assistant. Provide thorough, evidence-based responses. Break down complex problems, cite reasoning, and present findings clearly with appropriate caveats.`,
+                concise: `You are a helpful assistant that provides brief, direct answers. Avoid unnecessary elaboration. Get straight to the point while remaining accurate and helpful.`,
+            };
+
+            // Get request parameters (excluding null seed)
+            function getRequestParams() {
+                const params = { ...AppState.parameters };
+                if (params.seed === null) delete params.seed;
+                return params;
+            }
+
+            // Get system message content
+            function getSystemMessage() {
+                const { preset, customText } = AppState.systemPrompt;
+                if (preset === 'none' && !customText.trim()) return null;
+                if (preset === 'custom') return customText.trim();
+                return SYSTEM_PROMPT_PRESETS[preset] || null;
+            }
+
+            // ==========================================
+            // Safe Math Expression Parser (no eval)
+            // ==========================================
+
+            function safeMathEval(expression) {
+                // Tokenize the expression
+                const tokens = [];
+                let i = 0;
+                const expr = expression.replace(/\s+/g, '');
+
+                while (i < expr.length) {
+                    const char = expr[i];
+
+                    // Numbers (including decimals)
+                    if (/\d/.test(char) || (char === '.' && /\d/.test(expr[i + 1]))) {
+                        let num = '';
+                        while (i < expr.length && (/\d/.test(expr[i]) || expr[i] === '.')) {
+                            num += expr[i++];
+                        }
+                        tokens.push({ type: 'number', value: parseFloat(num) });
+                        continue;
+                    }
+
+                    // Operators
+                    if ('+-*/^%'.includes(char)) {
+                        // Handle ** for exponentiation
+                        if (char === '*' && expr[i + 1] === '*') {
+                            tokens.push({ type: 'operator', value: '**' });
+                            i += 2;
+                        } else {
+                            tokens.push({ type: 'operator', value: char });
+                            i++;
+                        }
+                        continue;
+                    }
+
+                    // Parentheses
+                    if (char === '(') {
+                        tokens.push({ type: 'lparen' });
+                        i++;
+                        continue;
+                    }
+                    if (char === ')') {
+                        tokens.push({ type: 'rparen' });
+                        i++;
+                        continue;
+                    }
+
+                    throw new Error(`Invalid character: ${char}`);
+                }
+
+                // Parse with precedence (recursive descent parser)
+                let pos = 0;
+
+                function peek() { return tokens[pos]; }
+                function consume() { return tokens[pos++]; }
+
+                function parseExpression() {
+                    return parseAddSub();
+                }
+
+                function parseAddSub() {
+                    let left = parseMulDiv();
+                    while (peek() && peek().type === 'operator' && '+-'.includes(peek().value)) {
+                        const op = consume().value;
+                        const right = parseMulDiv();
+                        left = op === '+' ? left + right : left - right;
+                    }
+                    return left;
+                }
+
+                function parseMulDiv() {
+                    let left = parsePower();
+                    while (peek() && peek().type === 'operator' && '*/%'.includes(peek().value) && peek().value !== '**') {
+                        const op = consume().value;
+                        const right = parsePower();
+                        if (op === '*') left = left * right;
+                        else if (op === '/') left = left / right;
+                        else if (op === '%') left = left % right;
+                    }
+                    return left;
+                }
+
+                function parsePower() {
+                    let left = parseUnary();
+                    while (peek() && peek().type === 'operator' && (peek().value === '**' || peek().value === '^')) {
+                        consume();
+                        const right = parseUnary();
+                        left = Math.pow(left, right);
+                    }
+                    return left;
+                }
+
+                function parseUnary() {
+                    if (peek() && peek().type === 'operator' && peek().value === '-') {
+                        consume();
+                        return -parsePrimary();
+                    }
+                    if (peek() && peek().type === 'operator' && peek().value === '+') {
+                        consume();
+                        return parsePrimary();
+                    }
+                    return parsePrimary();
+                }
+
+                function parsePrimary() {
+                    const token = peek();
+                    if (!token) throw new Error('Unexpected end of expression');
+
+                    if (token.type === 'number') {
+                        consume();
+                        return token.value;
+                    }
+
+                    if (token.type === 'lparen') {
+                        consume();
+                        const result = parseExpression();
+                        if (!peek() || peek().type !== 'rparen') {
+                            throw new Error('Missing closing parenthesis');
+                        }
+                        consume();
+                        return result;
+                    }
+
+                    throw new Error(`Unexpected token: ${JSON.stringify(token)}`);
+                }
+
+                const result = parseExpression();
+                if (pos < tokens.length) {
+                    throw new Error('Unexpected tokens after expression');
+                }
+                return result;
+            }
+
+            // ==========================================
+            // Tool Definitions
+            // ==========================================
+
+            const BUILT_IN_TOOLS = {
+                calculator: {
+                    type: "function",
+                    function: {
+                        name: "calculator",
+                        description: "Evaluate a mathematical expression. Supports basic arithmetic (+, -, *, /), exponents (** or ^), modulo (%), and parentheses.",
+                        parameters: {
+                            type: "object",
+                            properties: {
+                                expression: {
+                                    type: "string",
+                                    description: "The mathematical expression to evaluate, e.g., '2 + 2' or '(10 * 5) / 2'"
+                                }
+                            },
+                            required: ["expression"]
+                        }
+                    }
+                },
+                get_time: {
+                    type: "function",
+                    function: {
+                        name: "get_time",
+                        description: "Get the current date and time in the user's local timezone.",
+                        parameters: {
+                            type: "object",
+                            properties: {
+                                format: {
+                                    type: "string",
+                                    enum: ["iso", "human", "unix"],
+                                    description: "Output format: 'iso' for ISO 8601, 'human' for readable format, 'unix' for timestamp"
+                                }
+                            },
+                            required: []
+                        }
+                    }
+                },
+                get_weather: {
+                    type: "function",
+                    function: {
+                        name: "get_weather",
+                        description: "Get mock weather data for a location. Returns simulated weather conditions for testing purposes.",
+                        parameters: {
+                            type: "object",
+                            properties: {
+                                location: {
+                                    type: "string",
+                                    description: "The city and state/country, e.g., 'San Francisco, CA' or 'London, UK'"
+                                },
+                                unit: {
+                                    type: "string",
+                                    enum: ["celsius", "fahrenheit"],
+                                    description: "Temperature unit preference"
+                                }
+                            },
+                            required: ["location"]
+                        }
+                    }
+                }
+            };
+
+            // Tool executors
+            const TOOL_EXECUTORS = {
+                calculator: (args) => {
+                    try {
+                        const expression = args.expression;
+                        // Validate: only allow numbers, operators, parentheses, whitespace, decimals
+                        if (!/^[\d\s+\-*/().%^]+$/.test(expression)) {
+                            return { error: "Invalid expression: only numbers and basic operators allowed" };
+                        }
+                        const result = safeMathEval(expression);
+                        if (!isFinite(result)) {
+                            return { error: "Result is not a finite number (division by zero or overflow)" };
+                        }
+                        return { result: result, expression: expression };
+                    } catch (e) {
+                        return { error: `Calculation error: ${e.message}` };
+                    }
+                },
+
+                get_time: (args) => {
+                    const now = new Date();
+                    const format = args.format || 'human';
+
+                    switch (format) {
+                        case 'iso':
+                            return { time: now.toISOString(), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone };
+                        case 'unix':
+                            return { timestamp: Math.floor(now.getTime() / 1000), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone };
+                        case 'human':
+                        default:
+                            return {
+                                time: now.toLocaleString(),
+                                date: now.toLocaleDateString(),
+                                day: now.toLocaleDateString(undefined, { weekday: 'long' }),
+                                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+                            };
+                    }
+                },
+
+                get_weather: (args) => {
+                    const location = args.location || 'Unknown';
+                    const unit = args.unit || 'celsius';
+
+                    // Simple hash for deterministic mock data
+                    const hash = location.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+                    const conditions = ['Sunny', 'Cloudy', 'Partly Cloudy', 'Rainy', 'Windy'];
+                    const condition = conditions[hash % conditions.length];
+                    const tempC = 15 + (hash % 20);
+                    const temp = unit === 'fahrenheit' ? Math.round(tempC * 9/5 + 32) : tempC;
+
+                    return {
+                        location: location,
+                        temperature: temp,
+                        unit: unit,
+                        condition: condition,
+                        humidity: 40 + (hash % 40),
+                        note: "This is mock data for testing tool calls"
+                    };
+                }
+            };
+
+            // Tool Registry for extensibility
+            class ToolRegistry {
+                constructor() {
+                    this.tools = {};
+                }
+
+                register(name, definition, executor) {
+                    this.tools[name] = { definition, executor };
+                }
+
+                getDefinitions() {
+                    return Object.values(this.tools).map(t => t.definition);
+                }
+
+                getEnabledDefinitions(enabledNames) {
+                    return enabledNames
+                        .filter(name => this.tools[name])
+                        .map(name => this.tools[name].definition);
+                }
+
+                async execute(name, args) {
+                    const tool = this.tools[name];
+                    if (!tool) return { error: `Unknown tool: ${name}` };
+                    return await Promise.resolve(tool.executor(args));
+                }
+
+                list() {
+                    return Object.entries(this.tools).map(([name, t]) => ({
+                        name: name,
+                        description: t.definition.function.description
+                    }));
+                }
+            }
+
+            // Initialize tool registry
+            const toolRegistry = new ToolRegistry();
+            Object.entries(BUILT_IN_TOOLS).forEach(([name, def]) => {
+                toolRegistry.register(name, def, TOOL_EXECUTORS[name]);
+            });
+
+            // Tool mode state
+            let toolModeEnabled = false;
+            let enabledTools = new Set(['calculator', 'get_time', 'get_weather']);
+
+            // ==========================================
+            // Settings Panel Functions
+            // ==========================================
+
+            function toggleSettings() {
+                const panel = document.getElementById('settings-panel');
+                const toggleText = document.getElementById('settings-toggle-text');
+
+                if (panel.classList.contains('collapsed')) {
+                    panel.classList.remove('collapsed');
+                    toggleText.textContent = '▼ Model Parameters';
+                } else {
+                    panel.classList.add('collapsed');
+                    toggleText.textContent = '▶ Model Parameters';
+                }
+            }
+
+            function updateParam(param, value) {
+                let parsedValue;
+                if (param === 'seed') {
+                    parsedValue = value === '' ? null : parseInt(value, 10);
+                } else if (param === 'max_tokens') {
+                    parsedValue = parseInt(value, 10);
+                } else {
+                    parsedValue = parseFloat(value);
+                }
+
+                AppState.parameters[param] = parsedValue;
+
+                // Update displayed value
+                const displayMap = {
+                    'temperature': 'temp-value',
+                    'top_p': 'top-p-value',
+                    'max_tokens': 'max-tokens-value',
+                    'seed': 'seed-value'
+                };
+                const displayEl = document.getElementById(displayMap[param]);
+                if (displayEl) {
+                    displayEl.textContent = parsedValue === null ? 'Random' : parsedValue;
+                }
+            }
+
+            function resetParams() {
+                Object.assign(AppState.parameters, DEFAULT_PARAMS);
+
+                document.getElementById('param-temperature').value = DEFAULT_PARAMS.temperature;
+                document.getElementById('temp-value').textContent = DEFAULT_PARAMS.temperature;
+                document.getElementById('param-top-p').value = DEFAULT_PARAMS.top_p;
+                document.getElementById('top-p-value').textContent = DEFAULT_PARAMS.top_p;
+                document.getElementById('param-max-tokens').value = DEFAULT_PARAMS.max_tokens;
+                document.getElementById('max-tokens-value').textContent = DEFAULT_PARAMS.max_tokens;
+                document.getElementById('param-seed').value = '';
+                document.getElementById('seed-value').textContent = 'Random';
+            }
+
+            // ==========================================
+            // System Prompt Functions
+            // ==========================================
+
+            function handlePresetChange(preset) {
+                AppState.systemPrompt.preset = preset;
+
+                const preview = document.getElementById('system-prompt-preview');
+                const customTextarea = document.getElementById('system-prompt-custom');
+
+                if (preset === 'custom') {
+                    preview.textContent = '';
+                    customTextarea.classList.remove('collapsed');
+                    customTextarea.focus();
+                } else {
+                    customTextarea.classList.add('collapsed');
+                    preview.textContent = SYSTEM_PROMPT_PRESETS[preset] || '';
+                }
+            }
+
+            function updateCustomPrompt(value) {
+                AppState.systemPrompt.customText = value;
+            }
+
+            // ==========================================
+            // Tool Mode Functions
+            // ==========================================
+
+            function toggleToolMode(enabled) {
+                toolModeEnabled = enabled;
+                const panel = document.getElementById('tool-panel');
+                const statusText = document.getElementById('tool-mode-status');
+                const hintText = document.getElementById('tool-hint');
+
+                if (enabled) {
+                    panel.classList.remove('collapsed');
+                    statusText.textContent = 'Tool Mode: On';
+                    hintText.textContent = `(${enabledTools.size} tools active)`;
+                    populateToolList();
+                } else {
+                    panel.classList.add('collapsed');
+                    statusText.textContent = 'Tool Mode: Off';
+                    hintText.textContent = '(Enable to test function calling)';
+                }
+            }
+
+            function populateToolList() {
+                const toolList = document.getElementById('tool-list');
+                while (toolList.firstChild) {
+                    toolList.removeChild(toolList.firstChild);
+                }
+
+                toolRegistry.list().forEach(tool => {
+                    const item = document.createElement('div');
+                    item.className = 'tool-item';
+
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.id = `tool-${tool.name}`;
+                    checkbox.checked = enabledTools.has(tool.name);
+                    checkbox.onchange = () => toggleTool(tool.name, checkbox.checked);
+
+                    const info = document.createElement('div');
+                    info.className = 'tool-item-info';
+
+                    const name = document.createElement('div');
+                    name.className = 'tool-item-name';
+                    name.textContent = tool.name;
+
+                    const desc = document.createElement('div');
+                    desc.className = 'tool-item-desc';
+                    desc.textContent = tool.description;
+
+                    info.appendChild(name);
+                    info.appendChild(desc);
+
+                    item.appendChild(checkbox);
+                    item.appendChild(info);
+
+                    toolList.appendChild(item);
+                });
+            }
+
+            function toggleTool(name, enabled) {
+                if (enabled) {
+                    enabledTools.add(name);
+                } else {
+                    enabledTools.delete(name);
+                }
+                document.getElementById('tool-hint').textContent = `(${enabledTools.size} tools active)`;
+            }
+
+            function selectAllTools() {
+                toolRegistry.list().forEach(tool => {
+                    enabledTools.add(tool.name);
+                    const checkbox = document.getElementById(`tool-${tool.name}`);
+                    if (checkbox) checkbox.checked = true;
+                });
+                document.getElementById('tool-hint').textContent = `(${enabledTools.size} tools active)`;
+            }
+
+            // ==========================================
+            // Markdown Rendering (uses DOMPurify for XSS protection)
+            // ==========================================
+
+            let markdownReady = false;
+
+            function initMarkdown() {
+                if (typeof marked === 'undefined') {
+                    console.warn('marked.js not loaded - markdown rendering disabled');
+                    return false;
+                }
+
+                // Custom renderer for code blocks
+                const renderer = new marked.Renderer();
+
+                renderer.code = function(codeObj) {
+                    const code = typeof codeObj === 'object' ? codeObj.text : codeObj;
+                    const language = (typeof codeObj === 'object' ? codeObj.lang : arguments[1]) || 'text';
+
+                    let highlighted = code;
+                    if (typeof hljs !== 'undefined') {
+                        try {
+                            if (hljs.getLanguage(language)) {
+                                highlighted = hljs.highlight(code, { language: language }).value;
+                            } else {
+                                highlighted = hljs.highlightAuto(code).value;
+                            }
+                        } catch (e) {
+                            highlighted = escapeHtml(code);
+                        }
+                    } else {
+                        highlighted = escapeHtml(code);
+                    }
+
+                    const langLabel = language || 'text';
+                    const escapedCode = code.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+                    return `<div class="code-block-wrapper">
+                        <span class="code-block-lang">${langLabel}</span>
+                        <button class="code-block-copy" onclick="copyCode(this)" data-code="${escapedCode}">Copy</button>
+                        <pre><code class="hljs language-${language}">${highlighted}</code></pre>
+                    </div>`;
+                };
+
+                marked.setOptions({
+                    renderer: renderer,
+                    breaks: true,
+                    gfm: true,
+                });
+
+                markdownReady = true;
+                return true;
+            }
+
+            function escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.textContent.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            }
+
+            function copyCode(button) {
+                const code = button.dataset.code;
+                const decoded = code.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+
+                navigator.clipboard.writeText(decoded).then(() => {
+                    const original = button.textContent;
+                    button.textContent = 'Copied!';
+                    setTimeout(() => button.textContent = original, 2000);
+                });
+            }
+
+            /**
+             * Render markdown to a safe DOM element.
+             * Uses DOMPurify.sanitize with RETURN_DOM_FRAGMENT to avoid innerHTML.
+             */
+            function renderMarkdown(text) {
+                const div = document.createElement('div');
+                div.className = 'message-content';
+
+                if (!markdownReady || typeof DOMPurify === 'undefined') {
+                    // Fallback to plain text
+                    div.textContent = text;
+                    return div;
+                }
+
+                // Parse markdown to HTML string
+                const rawHtml = marked.parse(text);
+
+                // Sanitize and get DOM fragment directly (avoids innerHTML)
+                const fragment = DOMPurify.sanitize(rawHtml, {
+                    RETURN_DOM_FRAGMENT: true,
+                    ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'code', 'pre', 'ul', 'ol', 'li',
+                                   'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a', 'blockquote',
+                                   'table', 'thead', 'tbody', 'tr', 'th', 'td', 'hr', 'div',
+                                   'span', 'button'],
+                    ALLOWED_ATTR: ['href', 'class', 'onclick', 'data-code', 'target'],
+                });
+
+                // Append the sanitized fragment
+                div.appendChild(fragment);
+
+                return div;
+            }
+
+            // ==========================================
+            // Tool Call Display Functions
+            // ==========================================
+
+            function displayToolCall(toolCall) {
+                const block = document.createElement('div');
+                block.className = 'tool-call-block';
+
+                const header = document.createElement('div');
+                header.className = 'tool-call-header';
+
+                const icon = document.createTextNode('\u{1F6E0} Tool Call: ');
+                const name = document.createElement('span');
+                name.className = 'tool-call-name';
+                name.textContent = toolCall.function.name;
+
+                header.appendChild(icon);
+                header.appendChild(name);
+
+                const args = document.createElement('div');
+                args.className = 'tool-call-args';
+                try {
+                    args.textContent = JSON.stringify(JSON.parse(toolCall.function.arguments), null, 2);
+                } catch {
+                    args.textContent = toolCall.function.arguments;
+                }
+
+                block.appendChild(header);
+                block.appendChild(args);
+                chatArea.appendChild(block);
+                chatArea.scrollTop = chatArea.scrollHeight;
+            }
+
+            function displayToolResult(toolName, result) {
+                const isError = result.error !== undefined;
+                const block = document.createElement('div');
+                block.className = isError ? 'tool-error-block' : 'tool-result-block';
+
+                const header = document.createElement('div');
+                header.className = isError ? 'tool-error-header tool-result-header' : 'tool-result-header';
+
+                const icon = document.createTextNode(isError ? '\u{26A0} Tool Error: ' : '\u{2705} Tool Result: ');
+                const name = document.createElement('span');
+                name.className = 'tool-call-name';
+                name.textContent = toolName;
+
+                header.appendChild(icon);
+                header.appendChild(name);
+
+                const content = document.createElement('div');
+                content.className = 'tool-result-content';
+                content.textContent = JSON.stringify(result, null, 2);
+
+                block.appendChild(header);
+                block.appendChild(content);
+                chatArea.appendChild(block);
+                chatArea.scrollTop = chatArea.scrollHeight;
+            }
+
+            // ==========================================
+            // Clear Conversation
+            // ==========================================
+
+            function clearConversation() {
+                AppState.messages = [];
+                while (chatArea.firstChild) {
+                    chatArea.removeChild(chatArea.firstChild);
+                }
+                const welcome = document.createElement('div');
+                welcome.className = 'message assistant-message';
+                welcome.textContent = 'Chat cleared. Select a model and type a message to start.';
+                chatArea.appendChild(welcome);
+            }
+
+            // ==========================================
+            // Export Chat Transcript
+            // ==========================================
+
+            /**
+             * Export chat as markdown and copy to clipboard
+             */
+            function exportChat() {
+                const model = modelSelect.value || 'Unknown Model';
+                const timestamp = new Date().toLocaleString();
+                const params = AppState.parameters;
+                const systemPrompt = getSystemMessage();
+
+                let markdown = `# Chat Export - ${model}\n`;
+                markdown += `Generated: ${timestamp}\n\n`;
+
+                // Configuration section
+                markdown += `## Configuration\n`;
+                markdown += `- **Model**: ${model}\n`;
+                markdown += `- **Temperature**: ${params.temperature}\n`;
+                markdown += `- **Top P**: ${params.top_p}\n`;
+                markdown += `- **Max Tokens**: ${params.max_tokens}\n`;
+                markdown += `- **Seed**: ${params.seed || 'Random'}\n`;
+                markdown += `- **Tool Mode**: ${toolModeEnabled ? 'enabled' : 'disabled'}\n`;
+                if (toolModeEnabled) {
+                    markdown += `- **Active Tools**: ${Array.from(enabledTools).join(', ')}\n`;
+                }
+                markdown += `\n`;
+
+                // System prompt section
+                markdown += `## System Prompt\n`;
+                if (systemPrompt) {
+                    markdown += `\`\`\`\n${systemPrompt}\n\`\`\`\n\n`;
+                } else {
+                    markdown += `None\n\n`;
+                }
+
+                markdown += `---\n\n`;
+                markdown += `## Conversation\n\n`;
+
+                // Process messages
+                for (const msg of AppState.messages) {
+                    if (msg.role === 'user') {
+                        markdown += `### 👤 User\n${msg.content}\n\n`;
+                    } else if (msg.role === 'assistant') {
+                        if (msg.tool_calls && msg.tool_calls.length > 0) {
+                            // Assistant message with tool calls
+                            for (const tc of msg.tool_calls) {
+                                markdown += `### 🛠 Tool Call: ${tc.function.name}\n`;
+                                markdown += `\`\`\`json\n${tc.function.arguments}\n\`\`\`\n\n`;
+                            }
+                        }
+                        if (msg.content) {
+                            // Parse out thinking blocks for cleaner export
+                            const parsed = parseThinkingTags(msg.content);
+
+                            // Include thinking blocks if present
+                            if (parsed.thinking.length > 0) {
+                                markdown += `### 💭 Model Reasoning\n`;
+                                markdown += `<details>\n<summary>Click to expand reasoning</summary>\n\n`;
+                                for (const thought of parsed.thinking) {
+                                    markdown += `${thought}\n\n`;
+                                }
+                                markdown += `</details>\n\n`;
+                            }
+
+                            // Include the actual response
+                            if (parsed.response) {
+                                markdown += `### 🤖 Assistant\n${parsed.response}\n\n`;
+                            }
+                        }
+                    } else if (msg.role === 'tool') {
+                        markdown += `### ✅ Tool Result\n`;
+                        markdown += `\`\`\`json\n${msg.content}\n\`\`\`\n\n`;
+                    }
+                }
+
+                markdown += `---\n`;
+                markdown += `*Exported from local-ai Model Tester*\n`;
+
+                // Copy to clipboard
+                navigator.clipboard.writeText(markdown).then(() => {
+                    showToast('Chat transcript copied to clipboard!');
+                }).catch(err => {
+                    console.error('Failed to copy:', err);
+                    showToast('Failed to copy to clipboard', true);
+                });
+            }
+
+            /**
+             * Show toast notification
+             */
+            function showToast(message, isError = false) {
+                const toast = document.getElementById('toast');
+                toast.textContent = message;
+                toast.style.background = isError ? '#dc3545' : '#333';
+                toast.classList.add('visible');
+
+                setTimeout(() => {
+                    toast.classList.remove('visible');
+                }, 3000);
+            }
+
+            // ==========================================
+            // Tool Status Display
+            // ==========================================
+
+            /**
+             * Display tool status when tools were available but not called
+             */
+            function displayToolStatus(finishReason, responseContent) {
+                const block = document.createElement('div');
+                block.className = 'tool-status-block';
+
+                const header = document.createElement('div');
+                header.className = 'tool-status-header';
+                header.textContent = '🔧 Tool Status';
+
+                const content = document.createElement('div');
+                content.className = 'tool-status-content';
+                content.textContent = `Tools were available but the model did not request any.`;
+
+                const details = document.createElement('div');
+                details.className = 'tool-status-content';
+                details.style.marginTop = '0.5rem';
+                details.textContent = `Finish reason: ${finishReason || 'unknown'}`;
+
+                block.appendChild(header);
+                block.appendChild(content);
+                block.appendChild(details);
+
+                // Check if response might contain tool-like text patterns
+                const toolNames = Array.from(enabledTools);
+                const mentionedTools = toolNames.filter(name =>
+                    responseContent && responseContent.toLowerCase().includes(name.toLowerCase())
+                );
+
+                if (mentionedTools.length > 0) {
+                    const tip = document.createElement('div');
+                    tip.className = 'tool-status-tip';
+                    tip.textContent = `⚠️ Note: The response mentions "${mentionedTools.join('", "')}" but no structured tool call was made. This model may not support function calling properly.`;
+                    block.appendChild(tip);
+                } else {
+                    const tip = document.createElement('div');
+                    tip.className = 'tool-status-tip';
+                    tip.textContent = 'Tip: Try asking a question that would require using a tool, like "What is 25 * 4?" or "What time is it?"';
+                    block.appendChild(tip);
+                }
+
+                chatArea.appendChild(block);
+                chatArea.scrollTop = chatArea.scrollHeight;
+            }
 
             modelSelect.addEventListener("change", function () {
                 chatInput.disabled = false;
@@ -597,67 +2105,212 @@ Status: {{ status.health or 'unknown' }}</pre>
 
                 const selectedModel = modelSelect.value;
 
-                // Add user message to chat (not AI response)
+                // Add user message to chat
                 addMessageToChat(message, "user-message", false);
+
+                // Add to conversation history
+                AppState.messages.push({ role: "user", content: message });
+
                 chatInput.value = "";
                 chatInput.disabled = true;
                 sendButton.disabled = true;
 
-                // Show loading indicator
-                const loadingId = addMessageToChat("Thinking...", "loading", false);
+                // Start conversation processing (handles tool calls)
+                await processConversation(selectedModel);
 
-                try {
-                    const response = await fetch("/api/chat", {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify({
-                            model: selectedModel,
-                            messages: [{ role: "user", content: message }],
+                chatInput.disabled = false;
+                sendButton.disabled = false;
+                chatInput.focus();
+            }
+
+            /**
+             * Process conversation with tool calling support.
+             * Loops until model gives final response (no more tool calls).
+             */
+            async function processConversation(model) {
+                const maxToolIterations = 10; // Safety limit
+                let iteration = 0;
+                let anyToolsCalled = false; // Track if any tools were called during the conversation
+
+                while (iteration < maxToolIterations) {
+                    iteration++;
+
+                    // Show loading indicator
+                    const loadingId = addMessageToChat("Thinking...", "loading", false);
+
+                    try {
+                        // Build messages array with system prompt
+                        const messages = [];
+
+                        // Add system message if configured
+                        const systemMessage = getSystemMessage();
+                        if (systemMessage) {
+                            messages.push({ role: "system", content: systemMessage });
+                        }
+
+                        // Add conversation history
+                        messages.push(...AppState.messages);
+
+                        // Build request body with parameters
+                        const requestBody = {
+                            model: model,
+                            messages: messages,
                             stream: false,
-                        }),
-                    });
+                            ...getRequestParams(),
+                        };
 
-                    if (!response.ok) {
-                        throw new Error(
-                            `HTTP error! status: ${response.status}`,
-                        );
+                        // Add tools if tool mode is enabled
+                        if (toolModeEnabled && enabledTools.size > 0) {
+                            requestBody.tools = toolRegistry.getEnabledDefinitions(Array.from(enabledTools));
+                            requestBody.tool_choice = "auto";
+                        }
+
+                        // Debug: Log the request
+                        console.log('[Tool Mode] Request:', {
+                            toolModeEnabled,
+                            toolsIncluded: !!requestBody.tools,
+                            toolCount: requestBody.tools?.length || 0,
+                            toolNames: requestBody.tools?.map(t => t.function.name) || []
+                        });
+
+                        const response = await fetch("/api/chat", {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                            },
+                            body: JSON.stringify(requestBody),
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+
+                        const data = await response.json();
+
+                        // Debug: Log the full response
+                        console.log('[Tool Mode] Full API Response:', data);
+
+                        // Remove loading indicator
+                        removeMessage(loadingId);
+
+                        const assistantMessage = data.choices[0].message;
+                        const toolCalls = assistantMessage.tool_calls;
+                        const finishReason = data.choices[0].finish_reason;
+
+                        // Debug: Log tool call detection
+                        console.log('[Tool Mode] Response analysis:', {
+                            hasContent: !!assistantMessage.content,
+                            contentLength: assistantMessage.content?.length || 0,
+                            hasToolCalls: !!toolCalls,
+                            toolCallCount: toolCalls?.length || 0,
+                            finishReason: finishReason,
+                            toolCalls: toolCalls || 'none'
+                        });
+
+                        // Add assistant message to history
+                        AppState.messages.push(assistantMessage);
+
+                        if (toolCalls && toolCalls.length > 0) {
+                            anyToolsCalled = true; // Mark that tools were used
+                            console.log('[Tool Mode] Processing tool calls...');
+                            // Process tool calls
+                            for (const toolCall of toolCalls) {
+                                console.log('[Tool Mode] Executing:', toolCall.function.name);
+                                // Display tool call in UI
+                                displayToolCall(toolCall);
+
+                                // Execute tool
+                                let args;
+                                try {
+                                    args = JSON.parse(toolCall.function.arguments);
+                                } catch {
+                                    args = {};
+                                }
+                                const result = await toolRegistry.execute(toolCall.function.name, args);
+                                console.log('[Tool Mode] Result:', result);
+
+                                // Display result in UI
+                                displayToolResult(toolCall.function.name, result);
+
+                                // Add tool result to history
+                                AppState.messages.push({
+                                    role: "tool",
+                                    tool_call_id: toolCall.id,
+                                    content: JSON.stringify(result)
+                                });
+                            }
+
+                            // Continue loop to get final response after tool execution
+                            continue;
+                        } else {
+                            // No tool calls - display final response
+                            console.log('[Tool Mode] No tool_calls in response - model did not use tools');
+                            if (assistantMessage.content) {
+                                addMessageToChat(assistantMessage.content, "assistant-message", true);
+                            }
+
+                            // Show tool status indicator only if tools were enabled but NEVER used
+                            if (toolModeEnabled && enabledTools.size > 0 && !anyToolsCalled) {
+                                displayToolStatus(finishReason, assistantMessage.content);
+                            }
+
+                            // Update debug info
+                            updateDebugInfo(model, data.usage, finishReason, toolCalls);
+                            break; // Exit loop
+                        }
+                    } catch (error) {
+                        removeMessage(loadingId);
+                        addMessageToChat(`Error: ${error.message}`, "error", false);
+                        debugInfo.textContent += `\n\nError: ${error.message}`;
+                        console.error("Error:", error);
+                        break;
                     }
+                }
 
-                    const data = await response.json();
-
-                    // Remove loading indicator
-                    removeMessage(loadingId);
-
-                    // Add assistant response (IS an AI response - parse thinking tags)
-                    const assistantMessage = data.choices[0].message.content;
-                    addMessageToChat(assistantMessage, "assistant-message", true);
-
-                    // Update debug info
-                    debugInfo.textContent += `\n\nTest completed:
-Model: ${selectedModel}
-Prompt tokens: ${data.usage.prompt_tokens}
-Completion tokens: ${data.usage.completion_tokens}
-Total tokens: ${data.usage.total_tokens}`;
-                } catch (error) {
-                    // Remove loading indicator
-                    removeMessage(loadingId);
-
-                    // Show error
-                    addMessageToChat(`Error: ${error.message}`, "error", false);
-                    debugInfo.textContent += `\n\nError: ${error.message}`;
-                    console.error("Error:", error);
-                } finally {
-                    chatInput.disabled = false;
-                    sendButton.disabled = false;
-                    chatInput.focus();
+                if (iteration >= maxToolIterations) {
+                    addMessageToChat("Warning: Maximum tool iterations reached", "error", false);
                 }
             }
 
             /**
+             * Update debug info with request details
+             */
+            function updateDebugInfo(model, usage, finishReason, toolCalls) {
+                const params = AppState.parameters;
+                let debugText = `\n\n--- Response Debug ---
+Model: ${model}
+Temperature: ${params.temperature}
+Top P: ${params.top_p}
+Max Tokens: ${params.max_tokens}
+Seed: ${params.seed || 'Random'}
+Tool Mode: ${toolModeEnabled ? 'enabled' : 'disabled'}
+Finish Reason: ${finishReason || 'unknown'}`;
+
+                // Show tool call details
+                if (toolModeEnabled) {
+                    debugText += `\nTools Enabled: ${Array.from(enabledTools).join(', ')}`;
+                    if (toolCalls && toolCalls.length > 0) {
+                        debugText += `\nTool Calls Made: ${toolCalls.length}`;
+                        toolCalls.forEach((tc, i) => {
+                            debugText += `\n  ${i+1}. ${tc.function.name}(${tc.function.arguments})`;
+                        });
+                    } else {
+                        debugText += `\nTool Calls Made: 0 (model did not request any tools)`;
+                    }
+                }
+
+                if (usage) {
+                    debugText += `\nPrompt tokens: ${usage.prompt_tokens}
+Completion tokens: ${usage.completion_tokens}
+Total tokens: ${usage.total_tokens}`;
+                }
+
+                debugInfo.textContent += debugText;
+            }
+
+            /**
              * Add a message to the chat area.
-             * For AI responses, parses and displays thinking tags separately.
+             * For AI responses, parses thinking tags and renders markdown.
              */
             function addMessageToChat(message, className, isAIResponse = false) {
                 const messageId = "msg-" + Date.now();
@@ -675,16 +2328,20 @@ Total tokens: ${data.usage.total_tokens}`;
                         chatArea.appendChild(thinkingDiv);
                     });
 
-                    // Add regular response (if there's content after removing thinking tags)
+                    // Add regular response with markdown rendering
                     if (parsed.response) {
                         const messageDiv = document.createElement("div");
                         messageDiv.id = messageId;
                         messageDiv.className = `message ${className}`;
-                        messageDiv.textContent = parsed.response;
+
+                        // Render markdown for AI responses
+                        const contentDiv = renderMarkdown(parsed.response);
+                        messageDiv.appendChild(contentDiv);
+
                         chatArea.appendChild(messageDiv);
                     }
                 } else {
-                    // Regular message (user or system)
+                    // Regular message (user or system) - plain text
                     const messageDiv = document.createElement("div");
                     messageDiv.id = messageId;
                     messageDiv.className = `message ${className}`;
@@ -739,10 +2396,6 @@ Total tokens: ${data.usage.total_tokens}`;
                             modelSelect.appendChild(option);
                         });
 
-                        // Update model count
-                        document.getElementById('server-models').textContent =
-                            `${models.length} models available`;
-
                         // Enable chat input
                         chatInput.disabled = false;
                         sendButton.disabled = false;
@@ -774,6 +2427,9 @@ Total tokens: ${data.usage.total_tokens}`;
 
             // Fetch models when page loads
             document.addEventListener('DOMContentLoaded', function() {
+                // Initialize markdown rendering
+                initMarkdown();
+
                 // Add loading indicator with spinner using safe DOM method
                 const loadingDiv = createLoadingIndicator();
                 chatArea.appendChild(loadingDiv);
