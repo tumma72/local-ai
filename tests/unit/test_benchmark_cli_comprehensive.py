@@ -320,3 +320,169 @@ class TestBenchmarkCLI:
         assert result.exit_code == 0
         assert "Total Runs" in result.output
         assert "5" in result.output  # Should show 5 total runs
+
+
+class TestBenchmarkGooseCommand:
+    """Tests for benchmark goose command success path (lines 196-242)."""
+
+    @pytest.fixture
+    def cli_runner(self) -> CliRunner:
+        """Provide a Typer CLI test runner."""
+        return CliRunner()
+
+    @patch('local_ai.cli.benchmark.get_task_by_id')
+    @patch('local_ai.cli.benchmark.get_goose_output_dir')
+    @patch('local_ai.cli.benchmark.run_goose_command')
+    def test_goose_command_success_path(
+        self,
+        mock_run_goose: MagicMock,
+        mock_get_output_dir: MagicMock,
+        mock_get_task_by_id: MagicMock,
+        cli_runner: CliRunner,
+        tmp_path: Path,
+    ) -> None:
+        """Test goose command executes successfully with valid model and task.
+
+        Covers lines 196-242: the success path including output directory setup,
+        panel display, goose execution, and results table display.
+        """
+        # Mock task retrieval
+        mock_task = BenchmarkTask(
+            id="todo-api",
+            name="TODO REST API",
+            system_prompt="You are a Python expert.",
+            user_prompt="Create a REST API for todo management.",
+            difficulty=TaskDifficulty.MODERATE,
+            expected_output_tokens=500,
+        )
+        mock_get_task_by_id.return_value = mock_task
+
+        # Mock output directory
+        working_dir = tmp_path / "goose_test-model" / "todo-api"
+        mock_get_output_dir.return_value = working_dir
+
+        # Mock successful goose execution
+        from local_ai.benchmark.goose_runner import GooseResult
+        mock_goose_result = GooseResult(
+            output="def create_todo():\n    pass\n# Created todo API",
+            elapsed_ms=5000.0,
+            success=True,
+            working_directory=working_dir,
+        )
+        mock_run_goose.return_value = mock_goose_result
+
+        result = cli_runner.invoke(app, [
+            "benchmark", "goose",
+            "--model", "test-model",
+            "--task", "todo-api",
+        ])
+
+        assert result.exit_code == 0
+        # Verify goose was called with correct parameters
+        mock_run_goose.assert_called_once()
+        call_kwargs = mock_run_goose.call_args
+        assert call_kwargs.kwargs['model'] == 'test-model'
+        assert 'prompt' in call_kwargs.kwargs
+        # Output should contain results table
+        assert "Goose Results" in result.output
+        assert "Elapsed Time" in result.output
+        assert "5000" in result.output  # elapsed time in ms
+        assert "Success" in result.output
+
+    @patch('local_ai.cli.benchmark.get_task_by_id')
+    @patch('local_ai.cli.benchmark.get_goose_output_dir')
+    @patch('local_ai.cli.benchmark.run_goose_command')
+    def test_goose_command_failure_path(
+        self,
+        mock_run_goose: MagicMock,
+        mock_get_output_dir: MagicMock,
+        mock_get_task_by_id: MagicMock,
+        cli_runner: CliRunner,
+        tmp_path: Path,
+    ) -> None:
+        """Test goose command handles execution failure gracefully.
+
+        Covers line 222-224: error handling when goose run fails.
+        """
+        # Mock task retrieval
+        mock_task = BenchmarkTask(
+            id="todo-api",
+            name="TODO REST API",
+            system_prompt="System",
+            user_prompt="User",
+            difficulty=TaskDifficulty.MODERATE,
+            expected_output_tokens=500,
+        )
+        mock_get_task_by_id.return_value = mock_task
+
+        # Mock output directory
+        mock_get_output_dir.return_value = tmp_path / "goose_test" / "task"
+
+        # Mock failed goose execution
+        from local_ai.benchmark.goose_runner import GooseResult
+        mock_goose_result = GooseResult(
+            output="",
+            elapsed_ms=1000.0,
+            success=False,
+            error="Goose CLI timed out",
+        )
+        mock_run_goose.return_value = mock_goose_result
+
+        result = cli_runner.invoke(app, [
+            "benchmark", "goose",
+            "--model", "test-model",
+            "--task", "todo-api",
+        ])
+
+        assert result.exit_code == 1
+        assert "Goose run failed" in result.output
+        assert "timed out" in result.output
+
+    @patch('local_ai.cli.benchmark.get_task_by_id')
+    @patch('local_ai.cli.benchmark.get_goose_output_dir')
+    @patch('local_ai.cli.benchmark.run_goose_command')
+    def test_goose_command_with_long_output_preview(
+        self,
+        mock_run_goose: MagicMock,
+        mock_get_output_dir: MagicMock,
+        mock_get_task_by_id: MagicMock,
+        cli_runner: CliRunner,
+        tmp_path: Path,
+    ) -> None:
+        """Test goose command truncates long output in preview.
+
+        Covers lines 239-242: output preview truncation.
+        """
+        mock_task = BenchmarkTask(
+            id="todo-api",
+            name="TODO REST API",
+            system_prompt="System",
+            user_prompt="User",
+            difficulty=TaskDifficulty.MODERATE,
+            expected_output_tokens=500,
+        )
+        mock_get_task_by_id.return_value = mock_task
+        mock_get_output_dir.return_value = tmp_path / "goose_test" / "task"
+
+        # Mock goose with long output (>500 chars)
+        from local_ai.benchmark.goose_runner import GooseResult
+        long_output = "x" * 1000  # 1000 character output
+        mock_goose_result = GooseResult(
+            output=long_output,
+            elapsed_ms=3000.0,
+            success=True,
+            working_directory=tmp_path,
+        )
+        mock_run_goose.return_value = mock_goose_result
+
+        result = cli_runner.invoke(app, [
+            "benchmark", "goose",
+            "--model", "test-model",
+            "--task", "todo-api",
+        ])
+
+        assert result.exit_code == 0
+        # Preview should be truncated with ...
+        assert "..." in result.output
+        # Should show "Output Preview" panel
+        assert "Output Preview" in result.output

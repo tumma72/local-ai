@@ -458,3 +458,555 @@ class TestModelsCommandHelp:
         assert "MODEL_ID" in result.stdout
         assert "--convert" in result.stdout
         assert "--quantize" in result.stdout
+
+
+class TestModelsListWithServer:
+    """Verify list command behavior when server is running."""
+
+    def test_list_shows_server_models_and_converted_models(
+        self, cli_runner: CliRunner
+    ) -> None:
+        """list command should show models from server and converted models."""
+        from unittest.mock import Mock
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "data": [
+                {"id": "mlx-community/Model-A"},
+                {"id": "mlx-community/Model-B"},
+            ]
+        }
+        mock_response.raise_for_status = Mock()
+
+        mock_converted = [
+            ModelSearchResult(
+                id="local/converted-model",
+                author="local",
+                is_mlx_community=False,
+                size_bytes=2_000_000_000,
+            )
+        ]
+
+        with patch(
+            "httpx.get", return_value=mock_response
+        ), patch(
+            "local_ai.cli.models.get_converted_models", return_value=mock_converted
+        ), patch(
+            "local_ai.cli.models.create_local_model_result", side_effect=lambda x: ModelSearchResult(
+                id=x, author="mlx-community", is_mlx_community=True
+            )
+        ):
+            result = cli_runner.invoke(app, ["models", "list"])
+
+        assert result.exit_code == 0
+        assert "Server Models" in result.stdout
+        assert "Converted Models" in result.stdout
+
+    def test_list_shows_only_server_models_when_no_converted(
+        self, cli_runner: CliRunner
+    ) -> None:
+        """list command shows server models only when no converted models exist."""
+        from unittest.mock import Mock
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "data": [{"id": "mlx-community/Model-A"}]
+        }
+        mock_response.raise_for_status = Mock()
+
+        with patch(
+            "httpx.get", return_value=mock_response
+        ), patch(
+            "local_ai.cli.models.get_converted_models", return_value=[]
+        ), patch(
+            "local_ai.cli.models.create_local_model_result", side_effect=lambda x: ModelSearchResult(
+                id=x, author="mlx-community", is_mlx_community=True
+            )
+        ):
+            result = cli_runner.invoke(app, ["models", "list"])
+
+        assert result.exit_code == 0
+        assert "Server Models" in result.stdout
+
+    def test_list_shows_no_models_message_when_empty(
+        self, cli_runner: CliRunner
+    ) -> None:
+        """list command shows helpful message when no models available."""
+        from unittest.mock import Mock
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"data": []}
+        mock_response.raise_for_status = Mock()
+
+        with patch(
+            "httpx.get", return_value=mock_response
+        ), patch(
+            "local_ai.cli.models.get_converted_models", return_value=[]
+        ):
+            result = cli_runner.invoke(app, ["models", "list"])
+
+        assert result.exit_code == 0
+        assert "No models available" in result.stdout
+
+    def test_list_handles_server_connection_error(
+        self, cli_runner: CliRunner
+    ) -> None:
+        """list command shows error when server connection fails."""
+        import httpx
+
+        with patch(
+            "httpx.get", side_effect=httpx.ConnectError("Connection refused")
+        ), patch(
+            "local_ai.cli.models.get_converted_models", return_value=[]
+        ):
+            result = cli_runner.invoke(app, ["models", "list"])
+
+        assert result.exit_code == 1
+        assert "Cannot connect to server" in result.stdout
+
+    def test_list_handles_server_http_error(
+        self, cli_runner: CliRunner
+    ) -> None:
+        """list command shows error on HTTP error from server."""
+        import httpx
+        from unittest.mock import Mock
+
+        mock_response = Mock()
+        mock_response.status_code = 500
+        mock_response.raise_for_status = Mock(
+            side_effect=httpx.HTTPStatusError(
+                "Server error", request=Mock(), response=mock_response
+            )
+        )
+
+        with patch(
+            "httpx.get", return_value=mock_response
+        ), patch(
+            "local_ai.cli.models.get_converted_models", return_value=[]
+        ):
+            result = cli_runner.invoke(app, ["models", "list"])
+
+        assert result.exit_code == 1
+        assert "Server error" in result.stdout
+
+
+class TestModelsInfoLocalNotFound:
+    """Verify info command handles local model not found."""
+
+    def test_info_local_model_not_found_shows_error(
+        self, cli_runner: CliRunner
+    ) -> None:
+        """info command shows error when local model not found."""
+        with patch(
+            "local_ai.cli.models.get_converted_model_info", return_value=None
+        ):
+            result = cli_runner.invoke(
+                app, ["models", "info", "local/nonexistent-model"]
+            )
+
+        assert result.exit_code == 1
+        assert "Local model not found" in result.stdout
+        assert "List available models" in result.stdout
+
+
+class TestModelsRecommendCommand:
+    """Verify models recommend command behavior."""
+
+    def test_recommend_shows_settings_in_text_format(
+        self, cli_runner: CliRunner
+    ) -> None:
+        """recommend command should show settings in text format."""
+        mock_model = ModelSearchResult(
+            id="mlx-community/Qwen3-8B-4bit",
+            author="mlx-community",
+            downloads=1000,
+            is_mlx_community=True,
+            size_bytes=4_000_000_000,
+        )
+
+        with patch(
+            "local_ai.models.huggingface.get_model_info", return_value=mock_model
+        ), patch(
+            "local_ai.cli.models._fetch_context_length", return_value=32768
+        ), patch(
+            "local_ai.cli.models.detect_hardware", side_effect=RuntimeError("Not Apple Silicon")
+        ):
+            result = cli_runner.invoke(
+                app, ["models", "recommend", "mlx-community/Qwen3-8B-4bit"]
+            )
+
+        assert result.exit_code == 0
+        assert "Model Recommendation" in result.stdout
+        assert "temperature" in result.stdout
+        assert "max_tokens" in result.stdout
+
+    def test_recommend_shows_settings_in_json_format(
+        self, cli_runner: CliRunner
+    ) -> None:
+        """recommend command should output JSON when --format json specified."""
+        mock_model = ModelSearchResult(
+            id="mlx-community/Qwen3-8B-4bit",
+            author="mlx-community",
+            is_mlx_community=True,
+            size_bytes=4_000_000_000,
+        )
+
+        with patch(
+            "local_ai.models.huggingface.get_model_info", return_value=mock_model
+        ), patch(
+            "local_ai.cli.models._fetch_context_length", return_value=32768
+        ), patch(
+            "local_ai.cli.models.detect_hardware", side_effect=RuntimeError("Not Apple Silicon")
+        ):
+            result = cli_runner.invoke(
+                app, ["models", "recommend", "mlx-community/Qwen3-8B-4bit", "--format", "json"]
+            )
+
+        assert result.exit_code == 0
+        import json
+        data = json.loads(result.stdout)
+        assert "model" in data
+        assert "recommendation" in data
+
+    def test_recommend_shows_settings_in_zed_format(
+        self, cli_runner: CliRunner
+    ) -> None:
+        """recommend command should output Zed config when --format zed specified."""
+        mock_model = ModelSearchResult(
+            id="mlx-community/Qwen3-8B-4bit",
+            author="mlx-community",
+            is_mlx_community=True,
+            size_bytes=4_000_000_000,
+        )
+
+        with patch(
+            "local_ai.models.huggingface.get_model_info", return_value=mock_model
+        ), patch(
+            "local_ai.cli.models._fetch_context_length", return_value=32768
+        ), patch(
+            "local_ai.cli.models.detect_hardware", side_effect=RuntimeError("Not Apple Silicon")
+        ):
+            result = cli_runner.invoke(
+                app, ["models", "recommend", "mlx-community/Qwen3-8B-4bit", "--format", "zed"]
+            )
+
+        assert result.exit_code == 0
+        assert "Zed settings.json" in result.stdout
+        assert "language_models" in result.stdout
+
+    def test_recommend_shows_hardware_info_on_apple_silicon(
+        self, cli_runner: CliRunner, mock_hardware_128gb
+    ) -> None:
+        """recommend command should show hardware info on Apple Silicon."""
+        mock_model = ModelSearchResult(
+            id="mlx-community/Qwen3-8B-4bit",
+            author="mlx-community",
+            is_mlx_community=True,
+            size_bytes=4_000_000_000,
+        )
+
+        with patch(
+            "local_ai.models.huggingface.get_model_info", return_value=mock_model
+        ), patch(
+            "local_ai.cli.models._fetch_context_length", return_value=32768
+        ), patch(
+            "local_ai.cli.models.detect_hardware", return_value=mock_hardware_128gb
+        ):
+            result = cli_runner.invoke(
+                app, ["models", "recommend", "mlx-community/Qwen3-8B-4bit"]
+            )
+
+        assert result.exit_code == 0
+        assert "Hardware" in result.stdout
+        assert "M4 Max" in result.stdout
+
+    def test_recommend_invalid_format_shows_error(
+        self, cli_runner: CliRunner
+    ) -> None:
+        """recommend command with invalid format shows error."""
+        result = cli_runner.invoke(
+            app, ["models", "recommend", "mlx-community/test", "--format", "invalid"]
+        )
+
+        assert result.exit_code == 1
+        assert "Invalid format" in result.stdout
+
+    def test_recommend_model_not_found_shows_error(
+        self, cli_runner: CliRunner
+    ) -> None:
+        """recommend command shows error when model not found."""
+        with patch(
+            "local_ai.models.huggingface.get_model_info", return_value=None
+        ):
+            result = cli_runner.invoke(
+                app, ["models", "recommend", "nonexistent/model"]
+            )
+
+        assert result.exit_code == 1
+        assert "Model not found" in result.stdout
+
+
+class TestModelsDownloadConversion:
+    """Verify download command conversion functionality."""
+
+    def test_download_convert_with_auto_quantize_detects_hardware(
+        self, cli_runner: CliRunner, mock_hardware_128gb
+    ) -> None:
+        """download --convert --quantize auto should detect hardware."""
+        with patch(
+            "local_ai.cli.models.get_local_model_size", return_value=None
+        ), patch(
+            "local_ai.cli.models.detect_hardware", return_value=mock_hardware_128gb
+        ), patch(
+            "local_ai.cli.models.estimate_model_params_from_name", return_value=8.0
+        ), patch(
+            "local_ai.cli.models.get_recommended_quantization", return_value="4bit"
+        ), patch(
+            "mlx_lm.convert"
+        ):
+            result = cli_runner.invoke(
+                app, ["models", "download", "mistralai/Test-8B", "--convert", "--quantize", "auto"]
+            )
+
+        assert result.exit_code == 0
+        assert "Auto-detected" in result.stdout
+        assert "4bit recommended" in result.stdout
+
+    def test_download_convert_auto_quantize_fallback_on_detection_failure(
+        self, cli_runner: CliRunner
+    ) -> None:
+        """download --convert --quantize auto should fallback when detection fails."""
+        with patch(
+            "local_ai.cli.models.get_local_model_size", return_value=None
+        ), patch(
+            "local_ai.cli.models.detect_hardware", side_effect=RuntimeError("No Apple Silicon")
+        ), patch(
+            "mlx_lm.convert"
+        ):
+            result = cli_runner.invoke(
+                app, ["models", "download", "mistralai/Test-Model", "--convert", "--quantize", "auto"]
+            )
+
+        assert result.exit_code == 0
+        assert "Hardware detection failed" in result.stdout or "4bit default" in result.stdout
+
+    def test_download_convert_auto_quantize_model_too_large(
+        self, cli_runner: CliRunner, mock_hardware_8gb
+    ) -> None:
+        """download --convert --quantize auto should error when model too large."""
+        with patch(
+            "local_ai.cli.models.get_local_model_size", return_value=None
+        ), patch(
+            "local_ai.cli.models.detect_hardware", return_value=mock_hardware_8gb
+        ), patch(
+            "local_ai.cli.models.estimate_model_params_from_name", return_value=70.0  # 70B model
+        ), patch(
+            "local_ai.cli.models.get_recommended_quantization", return_value="too_large"
+        ):
+            result = cli_runner.invoke(
+                app, ["models", "download", "meta/Llama-70B", "--convert", "--quantize", "auto"]
+            )
+
+        assert result.exit_code == 1
+        assert "too large" in result.stdout.lower()
+
+    def test_download_convert_auto_quantize_size_unknown_fallback(
+        self, cli_runner: CliRunner, mock_hardware_128gb
+    ) -> None:
+        """download --convert --quantize auto should fallback when size unknown."""
+        with patch(
+            "local_ai.cli.models.get_local_model_size", return_value=None
+        ), patch(
+            "local_ai.cli.models.detect_hardware", return_value=mock_hardware_128gb
+        ), patch(
+            "local_ai.cli.models.estimate_model_params_from_name", return_value=None
+        ), patch(
+            "mlx_lm.convert"
+        ):
+            result = cli_runner.invoke(
+                app, ["models", "download", "unknown/model-name", "--convert", "--quantize", "auto"]
+            )
+
+        assert result.exit_code == 0
+        assert "Could not detect model size" in result.stdout
+
+    def test_download_mlx_model_failure_shows_error(
+        self, cli_runner: CliRunner
+    ) -> None:
+        """download command shows error when download fails."""
+        with patch(
+            "local_ai.cli.models.get_local_model_size", return_value=None
+        ), patch(
+            "huggingface_hub.snapshot_download", side_effect=Exception("Network error")
+        ):
+            result = cli_runner.invoke(
+                app, ["models", "download", "mlx-community/test-model"]
+            )
+
+        assert result.exit_code == 1
+        assert "Download failed" in result.stdout
+
+    def test_download_conversion_unsupported_architecture_error(
+        self, cli_runner: CliRunner
+    ) -> None:
+        """download --convert shows helpful error for unsupported architecture."""
+        with patch(
+            "local_ai.cli.models.get_local_model_size", return_value=None
+        ), patch(
+            "mlx_lm.convert", side_effect=Exception("model_type 'custom' not supported")
+        ):
+            result = cli_runner.invoke(
+                app, ["models", "download", "custom/unsupported-arch", "--convert"]
+            )
+
+        assert result.exit_code == 1
+        assert "Unsupported model architecture" in result.stdout
+
+    def test_download_convert_with_explicit_quantize_level(
+        self, cli_runner: CliRunner
+    ) -> None:
+        """download --convert --quantize 8bit should use explicit quantization."""
+        with patch(
+            "local_ai.cli.models.get_local_model_size", return_value=None
+        ), patch(
+            "mlx_lm.convert"
+        ):
+            result = cli_runner.invoke(
+                app, ["models", "download", "test/model", "--convert", "--quantize", "8bit"]
+            )
+
+        assert result.exit_code == 0
+        assert "8bit" in result.stdout
+
+    def test_download_convert_with_output_dir(
+        self, cli_runner: CliRunner, tmp_path
+    ) -> None:
+        """download --convert --output should use custom output directory."""
+        output_dir = str(tmp_path / "custom_output")
+
+        with patch(
+            "local_ai.cli.models.get_local_model_size", return_value=None
+        ), patch(
+            "mlx_lm.convert"
+        ):
+            result = cli_runner.invoke(
+                app, ["models", "download", "test/model", "--convert", "--output", output_dir]
+            )
+
+        assert result.exit_code == 0
+        assert "custom_output" in result.stdout
+
+
+class TestModelsListAllFlag:
+    """Verify list --all flag behavior."""
+
+    def test_list_all_no_models_shows_helpful_message(
+        self, cli_runner: CliRunner
+    ) -> None:
+        """list --all should show helpful message when no local models found."""
+        with patch(
+            "local_ai.cli.models.get_converted_models", return_value=[]
+        ):
+            result = cli_runner.invoke(app, ["models", "list", "--all"])
+
+        assert result.exit_code == 0
+        assert "No local models found" in result.stdout
+        assert "Download models with" in result.stdout
+
+
+class TestModelsRecommendEdgeCases:
+    """Verify recommend command edge cases."""
+
+    def test_recommend_shows_model_too_large_warning(
+        self, cli_runner: CliRunner, mock_hardware_8gb
+    ) -> None:
+        """recommend should show warning when model doesn't fit in memory."""
+        mock_model = ModelSearchResult(
+            id="mlx-community/Large-Model-32B",
+            author="mlx-community",
+            is_mlx_community=True,
+            size_bytes=32_000_000_000,  # 32 GB
+        )
+
+        with patch(
+            "local_ai.models.huggingface.get_model_info", return_value=mock_model
+        ), patch(
+            "local_ai.cli.models._fetch_context_length", return_value=32768
+        ), patch(
+            "local_ai.cli.models.detect_hardware", return_value=mock_hardware_8gb
+        ):
+            result = cli_runner.invoke(
+                app, ["models", "recommend", "mlx-community/Large-Model-32B"]
+            )
+
+        assert result.exit_code == 0
+        # Should show "too large" warning
+        assert "Too large" in result.stdout or "over" in result.stdout
+
+    def test_recommend_handles_analysis_failure(
+        self, cli_runner: CliRunner
+    ) -> None:
+        """recommend should show error when analysis fails."""
+        with patch(
+            "local_ai.models.huggingface.get_model_info",
+            side_effect=Exception("Network error")
+        ):
+            result = cli_runner.invoke(
+                app, ["models", "recommend", "error/model"]
+            )
+
+        assert result.exit_code == 1
+        assert "Model not found" in result.stdout
+
+    def test_recommend_without_context_length(
+        self, cli_runner: CliRunner
+    ) -> None:
+        """recommend should work without context length info."""
+        mock_model = ModelSearchResult(
+            id="mlx-community/Model-8B",
+            author="mlx-community",
+            is_mlx_community=True,
+            size_bytes=4_000_000_000,
+        )
+
+        with patch(
+            "local_ai.models.huggingface.get_model_info", return_value=mock_model
+        ), patch(
+            "local_ai.cli.models._fetch_context_length", return_value=None
+        ), patch(
+            "local_ai.cli.models.detect_hardware", side_effect=RuntimeError("No Apple Silicon")
+        ):
+            result = cli_runner.invoke(
+                app, ["models", "recommend", "mlx-community/Model-8B"]
+            )
+
+        assert result.exit_code == 0
+        assert "temperature" in result.stdout
+
+    def test_recommend_without_size_info(
+        self, cli_runner: CliRunner
+    ) -> None:
+        """recommend should work without size info."""
+        mock_model = ModelSearchResult(
+            id="mlx-community/Model-8B",
+            author="mlx-community",
+            is_mlx_community=True,
+            size_bytes=None,  # No size info
+        )
+
+        with patch(
+            "local_ai.models.huggingface.get_model_info", return_value=mock_model
+        ), patch(
+            "local_ai.cli.models._fetch_context_length", return_value=32768
+        ), patch(
+            "local_ai.cli.models.detect_hardware", side_effect=RuntimeError("No Apple Silicon")
+        ):
+            result = cli_runner.invoke(
+                app, ["models", "recommend", "mlx-community/Model-8B"]
+            )
+
+        assert result.exit_code == 0
+        assert "temperature" in result.stdout

@@ -498,3 +498,201 @@ class TestChipTierEnum:
         assert ChipTier.MAX.value == "max"
         # Can compare with string using value
         assert ChipTier.MAX == "max"
+
+
+class TestSysctlErrorHandling:
+    """Verify _run_sysctl handles subprocess failures gracefully."""
+
+    def test_run_sysctl_returns_none_on_exception(self) -> None:
+        """_run_sysctl should return None when subprocess raises exception."""
+        from local_ai.hardware.apple_silicon import _run_sysctl
+
+        with patch(
+            "local_ai.hardware.apple_silicon.subprocess.run",
+            side_effect=OSError("Command not found"),
+        ):
+            result = _run_sysctl("hw.memsize")
+
+        assert result is None
+
+    def test_run_sysctl_returns_none_on_timeout(self) -> None:
+        """_run_sysctl should return None when subprocess times out."""
+        import subprocess
+
+        from local_ai.hardware.apple_silicon import _run_sysctl
+
+        with patch(
+            "local_ai.hardware.apple_silicon.subprocess.run",
+            side_effect=subprocess.TimeoutExpired("sysctl", 5),
+        ):
+            result = _run_sysctl("hw.memsize")
+
+        assert result is None
+
+
+class TestGpuCoresErrorHandling:
+    """Verify _get_gpu_cores handles system_profiler failures gracefully."""
+
+    def test_get_gpu_cores_returns_zero_on_exception(self) -> None:
+        """_get_gpu_cores should return 0 when system_profiler fails."""
+        from local_ai.hardware.apple_silicon import _get_gpu_cores
+
+        with patch(
+            "local_ai.hardware.apple_silicon.subprocess.run",
+            side_effect=OSError("system_profiler not found"),
+        ):
+            result = _get_gpu_cores()
+
+        assert result == 0
+
+    def test_get_gpu_cores_returns_zero_on_timeout(self) -> None:
+        """_get_gpu_cores should return 0 when system_profiler times out."""
+        import subprocess
+
+        from local_ai.hardware.apple_silicon import _get_gpu_cores
+
+        with patch(
+            "local_ai.hardware.apple_silicon.subprocess.run",
+            side_effect=subprocess.TimeoutExpired("system_profiler", 10),
+        ):
+            result = _get_gpu_cores()
+
+        assert result == 0
+
+
+class TestQuantizationEdgeCases:
+    """Verify get_recommended_quantization handles edge cases."""
+
+    def test_recommends_4bit_for_borderline_model(
+        self, mock_hardware_16gb: AppleSiliconInfo
+    ) -> None:
+        """Should recommend 4bit when 6bit is too large but 4bit fits."""
+        # 16GB hardware: max ~10.2GB
+        # 18B model: 8bit=18GB (too large), 6bit=13.5GB (too large), 4bit=9GB (fits!)
+        quantization = get_recommended_quantization(
+            model_params_billions=18.0, hardware=mock_hardware_16gb
+        )
+
+        assert quantization == "4bit"
+
+
+class TestEstimateModelParamsPatterns:
+    """Verify estimate_model_params_from_name handles various naming patterns."""
+
+    def test_extracts_params_from_dash_b_dash_pattern(self) -> None:
+        """Should extract params from '7b-' pattern."""
+        # This tests line 268: the (\d+(?:\.\d+)?)b- pattern
+        params = estimate_model_params_from_name("mistral-7b-instruct-v0.2")
+
+        assert params == 7.0
+
+    def test_extracts_decimal_params_from_dash_b_dash_pattern(self) -> None:
+        """Should extract decimal params from '1.5b-' pattern."""
+        params = estimate_model_params_from_name("phi-1.5b-chat")
+
+        assert params == 1.5
+
+
+class TestSysctlSuccessPath:
+    """Verify _run_sysctl returns values on success."""
+
+    def test_run_sysctl_returns_value_on_success(self) -> None:
+        """_run_sysctl should return stdout when command succeeds."""
+        import subprocess
+        from unittest.mock import MagicMock
+
+        from local_ai.hardware.apple_silicon import _run_sysctl
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "test_value\n"
+
+        with patch(
+            "local_ai.hardware.apple_silicon.subprocess.run",
+            return_value=mock_result,
+        ):
+            result = _run_sysctl("test.key")
+
+        assert result == "test_value"
+
+    def test_run_sysctl_returns_none_on_nonzero_return_code(self) -> None:
+        """_run_sysctl should return None when command fails with nonzero exit."""
+        from unittest.mock import MagicMock
+
+        from local_ai.hardware.apple_silicon import _run_sysctl
+
+        mock_result = MagicMock()
+        mock_result.returncode = 1
+        mock_result.stdout = ""
+
+        with patch(
+            "local_ai.hardware.apple_silicon.subprocess.run",
+            return_value=mock_result,
+        ):
+            result = _run_sysctl("invalid.key")
+
+        assert result is None
+
+
+class TestGpuCoresSuccessPath:
+    """Verify _get_gpu_cores returns values on success."""
+
+    def test_get_gpu_cores_returns_count_on_success(self) -> None:
+        """_get_gpu_cores should return GPU core count when found in output."""
+        from unittest.mock import MagicMock
+
+        from local_ai.hardware.apple_silicon import _get_gpu_cores
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = """
+        Graphics/Displays:
+            Apple M4 Max:
+              Chipset Model: Apple M4 Max
+              Total Number of Cores: 40
+              Vendor: Apple (0x106b)
+        """
+
+        with patch(
+            "local_ai.hardware.apple_silicon.subprocess.run",
+            return_value=mock_result,
+        ):
+            result = _get_gpu_cores()
+
+        assert result == 40
+
+    def test_get_gpu_cores_returns_zero_when_no_match_in_output(self) -> None:
+        """_get_gpu_cores should return 0 when GPU cores not found in output."""
+        from unittest.mock import MagicMock
+
+        from local_ai.hardware.apple_silicon import _get_gpu_cores
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        mock_result.stdout = "No GPU information available"
+
+        with patch(
+            "local_ai.hardware.apple_silicon.subprocess.run",
+            return_value=mock_result,
+        ):
+            result = _get_gpu_cores()
+
+        assert result == 0
+
+    def test_get_gpu_cores_returns_zero_on_nonzero_return_code(self) -> None:
+        """_get_gpu_cores should return 0 when system_profiler fails."""
+        from unittest.mock import MagicMock
+
+        from local_ai.hardware.apple_silicon import _get_gpu_cores
+
+        mock_result = MagicMock()
+        mock_result.returncode = 1
+        mock_result.stdout = ""
+
+        with patch(
+            "local_ai.hardware.apple_silicon.subprocess.run",
+            return_value=mock_result,
+        ):
+            result = _get_gpu_cores()
+
+        assert result == 0

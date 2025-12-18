@@ -174,3 +174,77 @@ class TestBenchmarkTestValidator:
             assert results.passed == 2
             assert results.failed == 0
             mock_run_pytest.assert_called_once()
+
+
+class TestPytestOutputParsingEdgeCases:
+    """Verify pytest output parsing handles all status types."""
+
+    def test_parse_pytest_output_with_errors_status(self) -> None:
+        """Test parsing pytest output that includes 'errors' in summary."""
+        output = """
+        =============================== test session starts ===============================
+        collected 5 items
+
+        test_foo.py::test_one PASSED                                                  [ 20%]
+        test_foo.py::test_two FAILED                                                  [ 40%]
+        test_foo.py::test_three ERROR                                                 [ 60%]
+        test_foo.py::test_four ERROR                                                  [ 80%]
+        test_foo.py::test_five PASSED                                                 [100%]
+
+        ======================= 2 passed, 1 failed, 2 errors in 0.05s ===================
+        """
+
+        results = _parse_pytest_output(output)
+
+        assert results.passed == 2
+        assert results.failed == 1
+        assert results.errors == 2
+        assert results.total == 5
+
+    def test_parse_pytest_output_with_single_error(self) -> None:
+        """Test parsing pytest output with singular 'error' word."""
+        output = """
+        ======================= 3 passed, 1 error in 0.02s ===================
+        """
+
+        results = _parse_pytest_output(output)
+
+        assert results.passed == 3
+        assert results.errors == 1
+        assert results.total == 4
+
+    def test_parse_pytest_output_with_skipped_tests(self) -> None:
+        """Test parsing pytest output that includes skipped tests."""
+        output = """
+        =============================== test session starts ===============================
+        collected 6 items
+
+        test_foo.py::test_one PASSED                                                  [ 17%]
+        test_foo.py::test_two SKIPPED                                                 [ 33%]
+        test_foo.py::test_three PASSED                                                [ 50%]
+        test_foo.py::test_four SKIPPED                                                [ 67%]
+        test_foo.py::test_five PASSED                                                 [ 83%]
+        test_foo.py::test_six SKIPPED                                                 [100%]
+
+        ======================= 3 passed, 3 skipped in 0.03s =======================
+        """
+
+        results = _parse_pytest_output(output)
+
+        assert results.passed == 3
+        assert results.skipped == 3
+        assert results.total == 6
+
+    def test_parse_pytest_output_with_all_status_types(self) -> None:
+        """Test parsing pytest output with all possible status types."""
+        output = """
+        ======================= 5 passed, 2 failed, 1 error, 3 skipped in 0.10s =======
+        """
+
+        results = _parse_pytest_output(output)
+
+        assert results.passed == 5
+        assert results.failed == 2
+        assert results.errors == 1
+        assert results.skipped == 3
+        assert results.total == 11

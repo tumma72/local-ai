@@ -229,3 +229,115 @@ class TestMemoryTracker:
 
         assert metrics.baseline_memory_mb == 1000.0
         assert metrics.peak_memory_mb == 2000.0
+
+
+class TestGetMemoryMb:
+    """Verify get_memory_mb function behavior (lines 28-32)."""
+
+    def test_get_memory_with_valid_pid(self) -> None:
+        """Should return memory for specified process when PID is valid.
+
+        Covers lines 28-30: pid provided and process exists.
+        """
+        from local_ai.benchmark.metrics import get_memory_mb
+        import os
+
+        # Use current process PID which definitely exists
+        current_pid = os.getpid()
+        result = get_memory_mb(pid=current_pid)
+
+        # Should return positive memory value
+        assert result > 0
+        assert isinstance(result, float)
+
+    def test_get_memory_with_invalid_pid_falls_back_to_current_process(self) -> None:
+        """Should fall back to current process when PID does not exist.
+
+        Covers lines 31-32: NoSuchProcess exception caught, fallback triggered.
+        """
+        from local_ai.benchmark.metrics import get_memory_mb
+
+        # Use an invalid PID that definitely doesn't exist
+        invalid_pid = 999999999
+        result = get_memory_mb(pid=invalid_pid)
+
+        # Should still return a positive value (from current process fallback)
+        assert result > 0
+        assert isinstance(result, float)
+
+    def test_get_memory_without_pid(self) -> None:
+        """Should return current process memory when no PID provided."""
+        from local_ai.benchmark.metrics import get_memory_mb
+
+        result = get_memory_mb()
+
+        assert result > 0
+        assert isinstance(result, float)
+
+
+class TestMeasureStreamingRequestEdgeCases:
+    """Verify edge cases in measure_streaming_request (lines 191-192)."""
+
+    @pytest.mark.asyncio
+    async def test_estimates_tokens_when_usage_not_provided(self) -> None:
+        """Should estimate completion tokens when server doesn't provide usage.
+
+        Covers lines 191-192: completion_tokens == 0 and output exists.
+        """
+        # Create stream chunks without usage information
+        chunks_without_usage = [
+            MockStreamChunk(content="def "),
+            MockStreamChunk(content="hello"),
+            MockStreamChunk(content="():\n"),
+            MockStreamChunk(content="    print"),
+            MockStreamChunk(content="('Hello World!')"),
+            # Final chunk WITHOUT usage
+            MockStreamChunk(content=None, usage=None),
+        ]
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = MockStream(chunks_without_usage)
+
+        with patch("local_ai.benchmark.metrics.OpenAI", return_value=mock_client):
+            timing, throughput, output = await measure_streaming_request(
+                host="127.0.0.1",
+                port=8080,
+                model="test-model",
+                messages=[{"role": "user", "content": "Hello"}],
+            )
+
+        # Output should be concatenated
+        assert "def hello" in output
+        # Tokens should be estimated (roughly len(output) // 4)
+        assert throughput.completion_tokens > 0
+
+    @pytest.mark.asyncio
+    async def test_handles_no_system_message_in_cache_bypass(self) -> None:
+        """Should add system message with request ID when none exists.
+
+        Tests the _inject_request_id function path when no system message present.
+        """
+        chunks = [
+            MockStreamChunk(content="response"),
+            MockStreamChunk(content=None, usage={"prompt_tokens": 10, "completion_tokens": 5}),
+        ]
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = MockStream(chunks)
+
+        with patch("local_ai.benchmark.metrics.OpenAI", return_value=mock_client):
+            await measure_streaming_request(
+                host="127.0.0.1",
+                port=8080,
+                model="test-model",
+                # Only user message, no system message
+                messages=[{"role": "user", "content": "Hello"}],
+                bypass_cache=True,
+            )
+
+        # Check that a system message with request ID was injected
+        call_args = mock_client.chat.completions.create.call_args
+        messages = call_args.kwargs["messages"]
+        # First message should now be a system message with rid
+        assert messages[0]["role"] == "system"
+        assert "[rid:" in messages[0]["content"]

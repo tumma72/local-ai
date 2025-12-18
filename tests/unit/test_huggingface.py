@@ -311,3 +311,199 @@ class TestLocalModelFunctions:
             result = get_converted_model_info("nonexistent-model")
 
         assert result is None
+
+
+class TestSearchModelsApiFailures:
+    """Verify search_models handles various API failure scenarios gracefully."""
+
+    def test_search_with_include_all_mlx_returns_non_community_models(
+        self, mock_hf_model: MagicMock
+    ) -> None:
+        """search_models with include_all_mlx should return non-mlx-community MLX models."""
+        # Create a non-mlx-community MLX model
+        other_mlx_model = MagicMock()
+        other_mlx_model.id = "user/custom-mlx-model"
+        other_mlx_model.author = "user"
+        other_mlx_model.downloads = 100
+        other_mlx_model.likes = 5
+        other_mlx_model.last_modified = "2024-01-01"
+        other_mlx_model.tags = ["mlx"]
+
+        mock_api = MagicMock()
+        # First call (mlx-community) returns empty, second call (all MLX) returns model
+        mock_api.list_models.side_effect = [[], [other_mlx_model]]
+
+        with patch("huggingface_hub.HfApi", return_value=mock_api):
+            results = search_models("custom", limit=10, include_all_mlx=True)
+
+        assert len(results) == 1
+        assert results[0].id == "user/custom-mlx-model"
+        assert results[0].is_mlx_community is False
+
+    def test_search_all_mlx_api_failure_returns_partial_results(
+        self, mock_hf_model: MagicMock
+    ) -> None:
+        """search_models should return mlx-community results even if second search fails."""
+        mock_api = MagicMock()
+        # First call succeeds, second call (all MLX) fails
+        mock_api.list_models.side_effect = [
+            [mock_hf_model],
+            Exception("Secondary search failed"),
+        ]
+
+        with patch("huggingface_hub.HfApi", return_value=mock_api):
+            results = search_models("qwen3", limit=10, include_all_mlx=True)
+
+        # Should still return the mlx-community results
+        assert len(results) == 1
+        assert results[0].id == "mlx-community/Qwen3-8B-4bit"
+
+
+class TestSearchModelsEnhancedApiFailures:
+    """Verify search_models_enhanced handles API failures gracefully."""
+
+    def test_enhanced_search_handles_top_models_api_failure(
+        self, mock_hf_model: MagicMock
+    ) -> None:
+        """search_models_enhanced should return MLX results even if top models search fails."""
+        mock_api = MagicMock()
+        # First call (top models) fails, rest succeed
+        mock_api.list_models.side_effect = [
+            Exception("Top models search failed"),
+            [mock_hf_model],  # MLX community search
+            [],  # Additional MLX search
+        ]
+
+        with patch("huggingface_hub.HfApi", return_value=mock_api):
+            results = search_models_enhanced("qwen3", top_limit=3, mlx_limit=10)
+
+        assert len(results.top_models) == 0  # Failed
+        assert len(results.mlx_models) == 1  # Still works
+
+    def test_enhanced_search_includes_other_mlx_when_community_insufficient(
+        self, mock_hf_model: MagicMock
+    ) -> None:
+        """search_models_enhanced should fetch other MLX models when mlx-community is insufficient."""
+        # Create models for each search type
+        other_mlx_model = MagicMock()
+        other_mlx_model.id = "user/other-mlx-model"
+        other_mlx_model.author = "user"
+        other_mlx_model.downloads = 100
+        other_mlx_model.likes = 5
+        other_mlx_model.last_modified = "2024-01-01"
+        other_mlx_model.tags = ["mlx"]
+
+        mock_api = MagicMock()
+        mock_api.list_models.side_effect = [
+            [],  # Top models (empty)
+            [mock_hf_model],  # MLX community (only 1, less than limit)
+            [other_mlx_model],  # Other MLX search
+        ]
+
+        with patch("huggingface_hub.HfApi", return_value=mock_api):
+            results = search_models_enhanced("model", top_limit=3, mlx_limit=10)
+
+        # Should have both MLX models
+        assert len(results.mlx_models) == 2
+        model_ids = {m.id for m in results.mlx_models}
+        assert "mlx-community/Qwen3-8B-4bit" in model_ids
+        assert "user/other-mlx-model" in model_ids
+
+    def test_enhanced_search_handles_mlx_section_api_failure(
+        self, mock_original_model: MagicMock
+    ) -> None:
+        """search_models_enhanced should return top models even if MLX search fails."""
+        mock_api = MagicMock()
+        # First call (top models) succeeds, MLX section fails
+        mock_api.list_models.side_effect = [
+            [mock_original_model],  # Top models search
+            Exception("MLX search failed"),  # MLX community search fails
+        ]
+
+        with patch("huggingface_hub.HfApi", return_value=mock_api):
+            results = search_models_enhanced("qwen3", top_limit=3, mlx_limit=10)
+
+        assert len(results.top_models) == 1  # Should still have top models
+        assert len(results.mlx_models) == 0  # MLX search failed
+
+
+class TestLocalModelSizeEdgeCases:
+    """Verify get_local_model_size handles filesystem edge cases."""
+
+    def test_get_local_model_size_handles_permission_error(
+        self, temp_dir: Path
+    ) -> None:
+        """get_local_model_size should return None when cache cannot be read."""
+        # Create cache structure
+        cache_dir = temp_dir / ".cache" / "huggingface" / "hub"
+        model_blobs = cache_dir / "models--mlx-community--test-model" / "blobs"
+        model_blobs.mkdir(parents=True)
+
+        # Mock iterdir to raise an exception
+        with patch.object(Path, "home", return_value=temp_dir), patch.object(
+            Path, "iterdir", side_effect=PermissionError("Access denied")
+        ):
+            result = get_local_model_size("mlx-community/test-model")
+
+        assert result is None
+
+
+class TestConvertedModelsEdgeCases:
+    """Verify converted model functions handle edge cases."""
+
+    def test_get_converted_models_skips_files_in_models_dir(
+        self, temp_dir: Path
+    ) -> None:
+        """get_converted_models should skip non-directory entries."""
+        models_dir = temp_dir / "models"
+        models_dir.mkdir()
+
+        # Create a valid model directory
+        model_dir = models_dir / "valid-model"
+        model_dir.mkdir()
+        (model_dir / "weights.safetensors").write_bytes(b"x" * 1000)
+
+        # Create a file (not a directory) that should be skipped
+        (models_dir / "readme.txt").write_text("This is a readme")
+
+        with patch("local_ai.models.huggingface.CONVERTED_MODELS_DIR", models_dir):
+            results = get_converted_models()
+
+        # Should only include the valid directory
+        assert len(results) == 1
+        assert results[0].id == "local/valid-model"
+
+    def test_get_converted_models_handles_size_calculation_error(
+        self, temp_dir: Path
+    ) -> None:
+        """get_converted_models should return 0 size when calculation fails."""
+        models_dir = temp_dir / "models"
+        model_dir = models_dir / "broken-model"
+        model_dir.mkdir(parents=True)
+
+        with patch("local_ai.models.huggingface.CONVERTED_MODELS_DIR", models_dir), patch(
+            "pathlib.Path.rglob", side_effect=PermissionError("Access denied")
+        ):
+            results = get_converted_models()
+
+        # Should still return the model but with None size
+        assert len(results) == 1
+        assert results[0].id == "local/broken-model"
+        assert results[0].size_bytes is None
+
+    def test_get_converted_model_info_handles_size_calculation_error(
+        self, temp_dir: Path
+    ) -> None:
+        """get_converted_model_info should return 0 size when calculation fails."""
+        models_dir = temp_dir / "models"
+        model_dir = models_dir / "broken-model"
+        model_dir.mkdir(parents=True)
+
+        with patch("local_ai.models.huggingface.CONVERTED_MODELS_DIR", models_dir), patch(
+            "pathlib.Path.rglob", side_effect=PermissionError("Access denied")
+        ):
+            result = get_converted_model_info("broken-model")
+
+        assert result is not None
+        assert result.id == "local/broken-model"
+        assert result.size_bytes is None

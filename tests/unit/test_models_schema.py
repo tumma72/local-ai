@@ -38,9 +38,40 @@ class TestModelsSchema:
         assert extract_quantization("model-f32") == Quantization.FP32
 
     def test_extract_quantization_dwq(self) -> None:
-        """Test extracting DWQ quantization from model names."""
+        """Test extracting DWQ quantization from model names.
+
+        Note: DWQ patterns like "4bit-dwq" are caught by the explicit
+        "4bit" check first, so this tests the behavior users would see.
+        """
+        # These patterns contain "Xbit" which matches earlier patterns
         assert extract_quantization("model-4bit-dwq") == Quantization.Q4
+        assert extract_quantization("model-5bit-dwq") == Quantization.Q5
+        assert extract_quantization("model-6bit-dwq") == Quantization.Q6
         assert extract_quantization("model-8bit-dwq") == Quantization.Q8
+
+    def test_extract_quantization_5bit_patterns(self) -> None:
+        """Test extracting 5-bit quantization from model names."""
+        assert extract_quantization("model-5bit") == Quantization.Q5
+        assert extract_quantization("model-5b-quant") == Quantization.Q5
+        assert extract_quantization("model-q5-km") == Quantization.Q5
+
+    def test_extract_quantization_6bit_patterns(self) -> None:
+        """Test extracting 6-bit quantization from model names."""
+        assert extract_quantization("model-6bit") == Quantization.Q6
+        assert extract_quantization("model-6b-quant") == Quantization.Q6
+        assert extract_quantization("model-q6-km") == Quantization.Q6
+
+    def test_extract_quantization_unusual_dwq_returns_unknown(self) -> None:
+        """Test that unusual bit-width DWQ patterns return unknown.
+
+        The DWQ regex handler only explicitly handles 4, 5, 6, 8 bit patterns.
+        Other bit widths should return UNKNOWN.
+        """
+        # This pattern has "3bit-dwq" which won't match explicit patterns
+        # (no "3bit" check) and will reach DWQ handler but bits != 4,5,6,8
+        assert extract_quantization("model-3bit-dwq") == Quantization.UNKNOWN
+        # Similarly for 7-bit
+        assert extract_quantization("model-7bit-dwq") == Quantization.UNKNOWN
 
     def test_extract_quantization_unknown(self) -> None:
         """Test handling unknown quantization."""

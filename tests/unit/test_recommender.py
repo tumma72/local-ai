@@ -282,6 +282,100 @@ class TestEstimateModelParams:
         assert params == expected_params
 
 
+class TestCreativeModelDetection:
+    """Verify creative model type detection."""
+
+    @pytest.mark.parametrize(
+        "model_id,expected_type",
+        [
+            ("mlx-community/creative-writing-7b", "creative"),
+            ("user/story-generator-3b", "creative"),
+            ("mlx-community/writing-assistant-8b", "creative"),
+        ],
+        ids=[
+            "creative-keyword",
+            "story-keyword",
+            "writing-keyword",
+        ],
+    )
+    def test_detects_creative_models(
+        self, model_id: str, expected_type: str
+    ) -> None:
+        """detect_model_type should identify creative models from name patterns."""
+        from local_ai.models.recommender import detect_model_type
+
+        detected = detect_model_type(model_id)
+        assert detected == expected_type
+
+
+class TestRecommendSettingsHardwareFailure:
+    """Verify recommend_settings handles hardware detection failures."""
+
+    def test_recommend_settings_when_hardware_detection_fails(self) -> None:
+        """recommend_settings should use defaults when not on Apple Silicon."""
+        from unittest.mock import patch
+
+        from local_ai.models.recommender import recommend_settings
+
+        # Mock detect_hardware to raise RuntimeError (not on Apple Silicon)
+        # The import happens inside recommend_settings, so we patch the source module
+        with patch(
+            "local_ai.hardware.apple_silicon.detect_hardware",
+            side_effect=RuntimeError("Not running on Apple Silicon"),
+        ):
+            recommendation = recommend_settings(
+                model_id="mlx-community/Qwen3-8B-4bit",
+                model_size_gb=5.0,
+                context_length=32768,
+                hardware=None,  # Trigger auto-detection
+            )
+
+        # Should still return a valid recommendation with defaults
+        assert recommendation is not None
+        assert recommendation.model_id == "mlx-community/Qwen3-8B-4bit"
+        # When hardware is None (detection failed), fits_in_memory defaults to True
+        assert recommendation.fits_in_memory is True
+        # Temperature and max_tokens should still be computed
+        assert recommendation.temperature == 0.7  # general model
+        assert recommendation.max_tokens == 8192  # 25% of 32768
+
+
+class TestMaxTokensReasonEdgeCases:
+    """Verify max_tokens reason generation handles edge cases."""
+
+    def test_max_tokens_reason_for_floor_value(
+        self, mock_hardware_128gb: "AppleSiliconInfo"
+    ) -> None:
+        """recommend_settings should explain when max_tokens hits floor."""
+        from local_ai.models.recommender import recommend_settings
+
+        recommendation = recommend_settings(
+            model_id="mlx-community/small-model",
+            model_size_gb=1.0,
+            context_length=4096,  # 25% = 1024, which is below floor of 2048
+            hardware=mock_hardware_128gb,
+        )
+
+        assert recommendation.max_tokens == 2048
+        assert "Minimum" in recommendation.max_tokens_reason or "minimum" in recommendation.max_tokens_reason.lower()
+
+    def test_max_tokens_reason_when_context_unknown(
+        self, mock_hardware_128gb: "AppleSiliconInfo"
+    ) -> None:
+        """recommend_settings should explain when context length is unknown."""
+        from local_ai.models.recommender import recommend_settings
+
+        recommendation = recommend_settings(
+            model_id="mlx-community/unknown-model",
+            model_size_gb=5.0,
+            context_length=None,  # Unknown context length
+            hardware=mock_hardware_128gb,
+        )
+
+        assert recommendation.max_tokens == 4096  # Default
+        assert "unknown" in recommendation.max_tokens_reason.lower()
+
+
 # Hardware fixtures are defined in conftest.py:
 # - mock_hardware_128gb: M4 Max with 128GB
 # - mock_hardware_16gb: M2 with 16GB

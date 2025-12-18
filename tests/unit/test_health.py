@@ -90,3 +90,82 @@ class TestWaitForHealth:
             )
 
         assert result is False
+
+
+class TestGetModels:
+    """Verify get_models() behavior for querying server models (lines 32-36)."""
+
+    def test_get_models_returns_empty_list_on_non_200_status(self) -> None:
+        """Should return empty list when server returns non-200 status.
+
+        Covers lines 32-33: non-200 status code handling.
+        """
+        from local_ai.server.health import get_models
+
+        mock_response = MagicMock()
+        mock_response.status_code = 500  # Internal Server Error
+
+        with patch("httpx.get", return_value=mock_response):
+            result = get_models(host="127.0.0.1", port=8080)
+
+        assert result == []
+
+    def test_get_models_returns_empty_list_on_connection_error(self) -> None:
+        """Should return empty list when connection fails.
+
+        Covers lines 34-36: RequestError exception handling.
+        """
+        from local_ai.server.health import get_models
+
+        with patch("httpx.get", side_effect=httpx.ConnectError("Connection refused")):
+            result = get_models(host="127.0.0.1", port=8080)
+
+        assert result == []
+
+    def test_get_models_returns_model_ids_on_success(self) -> None:
+        """Should return list of model IDs when server responds successfully."""
+        from local_ai.server.health import get_models
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "data": [
+                {"id": "model-1", "object": "model"},
+                {"id": "model-2", "object": "model"},
+            ]
+        }
+
+        with patch("httpx.get", return_value=mock_response):
+            result = get_models(host="127.0.0.1", port=8080)
+
+        assert result == ["model-1", "model-2"]
+
+    def test_get_models_handles_missing_id_field(self) -> None:
+        """Should use 'unknown' when model entry lacks 'id' field."""
+        from local_ai.server.health import get_models
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "data": [
+                {"object": "model"},  # Missing 'id'
+                {"id": "model-with-id", "object": "model"},
+            ]
+        }
+
+        with patch("httpx.get", return_value=mock_response):
+            result = get_models(host="127.0.0.1", port=8080)
+
+        assert result == ["unknown", "model-with-id"]
+
+    def test_get_models_handles_timeout_error(self) -> None:
+        """Should return empty list when request times out.
+
+        Covers line 35: httpx.TimeoutException is a RequestError subclass.
+        """
+        from local_ai.server.health import get_models
+
+        with patch("httpx.get", side_effect=httpx.TimeoutException("Request timed out")):
+            result = get_models(host="127.0.0.1", port=8080)
+
+        assert result == []

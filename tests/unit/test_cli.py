@@ -179,6 +179,81 @@ class TestServerStatusCommand:
         assert "running" in result.stdout.lower()
         assert "12345" in result.stdout
 
+    def test_status_shows_unhealthy_health_in_red(
+        self, cli_runner: CliRunner
+    ) -> None:
+        """status command should display unhealthy status with appropriate styling."""
+        mock_status = ServerStatus(
+            running=True,
+            pid=12345,
+            host="127.0.0.1",
+            port=8080,
+            models="test-model",
+            uptime_seconds=60.0,
+            health="unhealthy",
+        )
+        mock_manager = MagicMock()
+        mock_manager.status.return_value = mock_status
+
+        with patch(
+            "local_ai.cli.server.ServerManager", return_value=mock_manager
+        ), patch("local_ai.cli.server.load_config"):
+            result = cli_runner.invoke(app, ["server", "status"])
+
+        assert result.exit_code == 0
+        assert "unhealthy" in result.stdout.lower()
+
+    def test_status_shows_unknown_health_in_yellow(
+        self, cli_runner: CliRunner
+    ) -> None:
+        """status command should display unknown health status with yellow styling."""
+        mock_status = ServerStatus(
+            running=True,
+            pid=12345,
+            host="127.0.0.1",
+            port=8080,
+            models="test-model",
+            uptime_seconds=60.0,
+            health="checking",
+        )
+        mock_manager = MagicMock()
+        mock_manager.status.return_value = mock_status
+
+        with patch(
+            "local_ai.cli.server.ServerManager", return_value=mock_manager
+        ), patch("local_ai.cli.server.load_config"):
+            result = cli_runner.invoke(app, ["server", "status"])
+
+        assert result.exit_code == 0
+        # Should show the health status
+        assert "checking" in result.stdout.lower()
+
+    def test_status_shows_uptime_when_available(
+        self, cli_runner: CliRunner
+    ) -> None:
+        """status command should show formatted uptime when server has uptime_seconds."""
+        mock_status = ServerStatus(
+            running=True,
+            pid=12345,
+            host="127.0.0.1",
+            port=8080,
+            models="test-model",
+            uptime_seconds=7265.0,  # 2h 1m 5s
+            health="healthy",
+        )
+        mock_manager = MagicMock()
+        mock_manager.status.return_value = mock_status
+
+        with patch(
+            "local_ai.cli.server.ServerManager", return_value=mock_manager
+        ), patch("local_ai.cli.server.load_config"):
+            result = cli_runner.invoke(app, ["server", "status"])
+
+        assert result.exit_code == 0
+        # Should show uptime formatted
+        assert "2h" in result.stdout
+        assert "Uptime" in result.stdout
+
     def test_status_when_not_running_returns_exit_code_0_and_shows_not_running(
         self, cli_runner: CliRunner
     ) -> None:

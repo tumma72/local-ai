@@ -68,3 +68,37 @@ class TestBenchmarkCompare:
 
         assert result.exit_code == 0
         assert "compare" in result.stdout.lower() or "benchmark" in result.stdout.lower()
+
+
+class TestBenchmarkGoose:
+    """Verify benchmark goose command."""
+
+    def test_goose_requires_model_option(self) -> None:
+        """Should require --model option."""
+        result = runner.invoke(app, ["benchmark", "goose", "--task", "todo-api"])
+
+        # Should fail without model
+        assert result.exit_code != 0
+
+    def test_goose_requires_task_option(self) -> None:
+        """Should require --task option."""
+        result = runner.invoke(app, ["benchmark", "goose", "--model", "test-model"])
+
+        # Should fail without task
+        assert result.exit_code != 0
+
+    def test_goose_shows_error_for_unknown_task(self) -> None:
+        """Should show error for invalid task ID."""
+        result = runner.invoke(
+            app, ["benchmark", "goose", "--model", "test", "--task", "nonexistent-task"]
+        )
+
+        assert result.exit_code != 0
+        assert "not found" in result.stdout.lower()
+
+    def test_goose_command_help_shows_description(self) -> None:
+        """Should show command description in help."""
+        result = runner.invoke(app, ["benchmark", "goose", "--help"])
+
+        assert result.exit_code == 0
+        assert "goose" in result.stdout.lower() or "agentic" in result.stdout.lower()
