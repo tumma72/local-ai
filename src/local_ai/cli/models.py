@@ -366,21 +366,37 @@ def recommend(
         console.print(json_module.dumps(output, indent=2))
 
     elif output_format == "zed":
-        # Generate Zed settings.json snippet
+        # Generate Zed settings.json snippet matching actual Zed config structure
         output = {
             "language_models": {
-                "openai": {
-                    "api_url": "http://localhost:8080/v1",
-                    "available_models": [
-                        {
-                            "name": recommendation.model_id,
-                            "display_name": _get_display_name(recommendation.model_id),
-                            "max_tokens": recommendation.max_tokens,
-                            "default_temperature": recommendation.temperature,
-                        }
-                    ],
+                "openai_compatible": {
+                    "local-ai": {
+                        "api_url": "http://localhost:8080/v1",
+                        "available_models": [
+                            {
+                                "name": recommendation.model_id,
+                                "display_name": _get_display_name(recommendation.model_id),
+                                "max_tokens": recommendation.max_tokens,
+                                "capabilities": {
+                                    "tools": True,
+                                    "images": False,
+                                    "parallel_tool_calls": True,
+                                    "prompt_cache_key": False,
+                                },
+                            }
+                        ],
+                    }
                 }
-            }
+            },
+            "agent": {
+                "model_parameters": [
+                    {
+                        "provider": "local-ai",
+                        "model": recommendation.model_id,
+                        "temperature": recommendation.temperature,
+                    }
+                ]
+            },
         }
         console.print("[bold cyan]Add to your Zed settings.json:[/bold cyan]\n")
         console.print(json_module.dumps(output, indent=2))
