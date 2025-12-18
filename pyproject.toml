@@ -1,5 +1,5 @@
 [project]
-name = "local-ai"
+name = "local-ai-server"
 version = "0.2.0a0"
 description = "Offline AI coding assistant for Apple Silicon. Run LLMs locally with OpenAI-compatible API."
 readme = "README.md"

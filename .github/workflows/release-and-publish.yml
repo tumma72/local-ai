@@ -107,7 +107,7 @@ jobs:
           sleep 30
 
           # Query PyPI's JSON API to verify publication
-          RESPONSE=$(curl -s https://pypi.org/pypi/local-ai/json)
+          RESPONSE=$(curl -s https://pypi.org/pypi/local-ai-server/json)
           PUBLISHED_VERSION=$(echo "$RESPONSE" | python -c "import sys, json; print(json.load(sys.stdin)['info']['version'])" 2>/dev/null || echo "not found")
 
           if [ "$PUBLISHED_VERSION" = "$VERSION" ]; then
