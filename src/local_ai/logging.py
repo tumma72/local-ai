@@ -11,6 +11,8 @@ Example:
     logger.info("Server started on port {}", port)  # Lazy evaluation
 """
 
+from __future__ import annotations
+
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
