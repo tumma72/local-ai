@@ -23,8 +23,8 @@ class TestBenchmarkCLI:
 
     @pytest.fixture
     def cli_runner(self) -> CliRunner:
-        """Provide a Typer CLI test runner."""
-        return CliRunner()
+        """Provide a Typer CLI test runner with consistent terminal settings."""
+        return CliRunner(env={"COLUMNS": "200", "LINES": "50", "TERM": "xterm-256color"})
 
     def test_benchmark_tasks_help_shows_usage(self, cli_runner: CliRunner) -> None:
         """Test benchmark tasks help command shows usage information."""
@@ -327,8 +327,8 @@ class TestBenchmarkGooseCommand:
 
     @pytest.fixture
     def cli_runner(self) -> CliRunner:
-        """Provide a Typer CLI test runner."""
-        return CliRunner()
+        """Provide a Typer CLI test runner with consistent terminal settings."""
+        return CliRunner(env={"COLUMNS": "200", "LINES": "50", "TERM": "xterm-256color"})
 
     @patch('local_ai.cli.benchmark.get_task_by_id')
     @patch('local_ai.cli.benchmark.get_goose_output_dir')

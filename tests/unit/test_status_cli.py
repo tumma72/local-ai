@@ -14,8 +14,8 @@ class TestStatusCLI:
 
     @pytest.fixture
     def cli_runner(self) -> CliRunner:
-        """Provide a Typer CLI test runner."""
-        return CliRunner()
+        """Provide a Typer CLI test runner with consistent terminal settings."""
+        return CliRunner(env={"COLUMNS": "200", "LINES": "50", "TERM": "xterm-256color"})
 
     @patch('local_ai.cli.status.detect_hardware')
     @patch('local_ai.cli.status.get_max_model_size_gb')

@@ -60,8 +60,18 @@ path = "mlx-community/test-model"
 
 @pytest.fixture
 def cli_runner() -> CliRunner:
-    """Provide a Typer CLI test runner."""
-    return CliRunner()
+    """Provide a Typer CLI test runner with consistent terminal settings.
+
+    Sets environment variables to ensure Rich/Typer produces consistent
+    output across different environments (local vs CI).
+    """
+    return CliRunner(
+        env={
+            "COLUMNS": "200",  # Wide terminal to prevent line wrapping
+            "LINES": "50",
+            "TERM": "xterm-256color",
+        }
+    )
 
 
 @pytest.fixture
