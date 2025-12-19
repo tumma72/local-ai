@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from typer.testing import CliRunner
 
+from tests.helpers import strip_ansi
 from local_ai.cli.main import app
 
 
@@ -209,19 +210,21 @@ class TestHelpAndDocumentation:
     ) -> None:
         """Test that search help shows available sort options."""
         result = cli_runner.invoke(app, ["models", "search", "--help"])
+        output = strip_ansi(result.stdout)
 
         assert result.exit_code == 0
-        assert "--sort" in result.stdout
-        assert "downloads" in result.stdout
-        assert "likes" in result.stdout
+        assert "--sort" in output
+        assert "downloads" in output
+        assert "likes" in output
 
     def test_download_help_shows_conversion_options(
         self, cli_runner: CliRunner
     ) -> None:
         """Test that download help shows conversion and quantization options."""
         result = cli_runner.invoke(app, ["models", "download", "--help"])
+        output = strip_ansi(result.stdout)
 
         assert result.exit_code == 0
-        assert "--convert" in result.stdout
-        assert "--quantize" in result.stdout
-        assert "auto" in result.stdout
+        assert "--convert" in output
+        assert "--quantize" in output
+        assert "auto" in output

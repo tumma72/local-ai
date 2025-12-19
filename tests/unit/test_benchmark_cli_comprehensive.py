@@ -14,6 +14,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
+from tests.helpers import strip_ansi
 from local_ai.benchmark.schema import BenchmarkTask, TaskDifficulty
 from local_ai.cli.main import app
 
@@ -29,10 +30,11 @@ class TestBenchmarkCLI:
     def test_benchmark_tasks_help_shows_usage(self, cli_runner: CliRunner) -> None:
         """Test benchmark tasks help command shows usage information."""
         result = cli_runner.invoke(app, ["benchmark", "tasks", "--help"])
+        output = strip_ansi(result.output)
 
         assert result.exit_code == 0
-        assert "List available benchmark tasks" in result.output
-        assert "--log-level" in result.output
+        assert "List available benchmark tasks" in output
+        assert "--log-level" in output
 
     @patch('local_ai.cli.benchmark.get_builtin_tasks')
     def test_benchmark_tasks_with_no_tasks(
@@ -85,11 +87,12 @@ class TestBenchmarkCLI:
     def test_benchmark_run_help_shows_usage(self, cli_runner: CliRunner) -> None:
         """Test benchmark run help command shows usage information."""
         result = cli_runner.invoke(app, ["benchmark", "run", "--help"])
+        output = strip_ansi(result.output)
 
         assert result.exit_code == 0
-        assert "Run benchmark on a model with specified task" in result.output
-        assert "--model" in result.output
-        assert "--task" in result.output
+        assert "Run benchmark on a model with specified task" in output
+        assert "--model" in output
+        assert "--task" in output
 
     @patch('local_ai.cli.benchmark.get_task_by_id')
     @patch('local_ai.cli.benchmark.BenchmarkRunner')

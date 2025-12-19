@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
+from tests.helpers import strip_ansi
 from local_ai.cli.main import app
 from local_ai.hardware.apple_silicon import AppleSiliconInfo
 
@@ -66,7 +67,8 @@ class TestStatusCLI:
     def test_status_help_shows_usage(self, cli_runner: CliRunner) -> None:
         """Test status help command shows usage information."""
         result = cli_runner.invoke(app, ["status", "--help"])
+        output = strip_ansi(result.output)
 
         assert result.exit_code == 0
-        assert "Show system status and hardware info" in result.output
-        assert "--log-level" in result.output
+        assert "Show system status and hardware info" in output
+        assert "--log-level" in output

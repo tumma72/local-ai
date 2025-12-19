@@ -15,6 +15,7 @@ from unittest.mock import patch
 import pytest
 from typer.testing import CliRunner
 
+from tests.helpers import strip_ansi
 from local_ai.cli.main import app
 from local_ai.models.schema import ModelSearchResult
 
@@ -442,22 +443,24 @@ class TestModelsCommandHelp:
     ) -> None:
         """search help should show query argument and options."""
         result = cli_runner.invoke(app, ["models", "search", "--help"])
+        output = strip_ansi(result.stdout)
 
         assert result.exit_code == 0
-        assert "QUERY" in result.stdout
-        assert "--top" in result.stdout
-        assert "--sort" in result.stdout
+        assert "QUERY" in output
+        assert "--top" in output
+        assert "--sort" in output
 
     def test_download_help_shows_convert_option(
         self, cli_runner: CliRunner
     ) -> None:
         """download help should show convert and quantize options."""
         result = cli_runner.invoke(app, ["models", "download", "--help"])
+        output = strip_ansi(result.stdout)
 
         assert result.exit_code == 0
-        assert "MODEL_ID" in result.stdout
-        assert "--convert" in result.stdout
-        assert "--quantize" in result.stdout
+        assert "MODEL_ID" in output
+        assert "--convert" in output
+        assert "--quantize" in output
 
 
 class TestModelsListWithServer:
