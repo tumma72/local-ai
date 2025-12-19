@@ -19,7 +19,6 @@ jobs:
         with:
           ref: ${{ github.ref }}
           fetch-depth: 0
-          submodules: recursive  # Include lib/mlx-omni-server
 
       - name: Set up Python
         uses: actions/setup-python@v5
