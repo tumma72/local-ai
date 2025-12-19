@@ -33,7 +33,15 @@ jobs:
         run: uv run --no-sources ruff check src/
 
       - name: Run type checker
-        run: uv run --no-sources mypy src/
+        run: |
+          # Create mypy override to ignore mlx package type stub errors
+          cat >> pyproject.toml << 'EOF'
+
+          [[tool.mypy.overrides]]
+          module = ["mlx.*"]
+          ignore_errors = true
+          EOF
+          uv run --no-sources mypy src/
 
       - name: Run tests with coverage
         run: uv run --no-sources pytest --cov=local_ai --cov-report=xml --cov-report=term-missing
