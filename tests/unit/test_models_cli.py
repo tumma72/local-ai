@@ -132,7 +132,7 @@ class TestModelsSearchCommand:
             result = cli_runner.invoke(app, ["models", "search", "qwen3"])
 
         assert result.exit_code == 0
-        assert "Showing 2 results (1 top + 1 MLX-optimized)" in result.stdout
+        assert "Showing 2 results (1 top + 1 MLX)" in result.stdout
 
 
 class TestModelsListCommand:

@@ -45,7 +45,8 @@ def status(
     console.print("\n[bold cyan]Hardware[/bold cyan]")
     console.print(f"  Chip: {hw.chip_name}")
     console.print(f"  Memory: {hw.memory_gb:.0f} GB (unified)")
-    console.print(f"  CPU: {hw.cpu_cores} cores ({hw.cpu_performance_cores}P + {hw.cpu_efficiency_cores}E)")
+    p_cores, e_cores = hw.cpu_performance_cores, hw.cpu_efficiency_cores
+    console.print(f"  CPU: {hw.cpu_cores} cores ({p_cores}P + {e_cores}E)")
     console.print(f"  GPU: {hw.gpu_cores} cores")
     console.print(f"  Neural Engine: {hw.neural_engine_cores} cores")
 

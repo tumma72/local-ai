@@ -212,9 +212,9 @@ def search(
         console.print(table2)
 
     total = len(results.top_models) + len(results.mlx_models)
-    console.print(
-        f"\n[dim]Showing {total} results ({len(results.top_models)} top + {len(results.mlx_models)} MLX-optimized)[/dim]"
-    )
+    top_count = len(results.top_models)
+    mlx_count = len(results.mlx_models)
+    console.print(f"\n[dim]Showing {total} results ({top_count} top + {mlx_count} MLX)[/dim]")
 
 
 @models_app.command()
@@ -464,7 +464,7 @@ def recommend(
 
         # Usage tip
         console.print()
-        console.print(f"[dim]For Zed config: local-ai models recommend {model_id} --format zed[/dim]")
+        console.print(f"[dim]For Zed: local-ai models recommend {model_id} --format zed[/dim]")
 
 
 def _fetch_model_analysis(model_id: str) -> tuple[float | None, int | None] | None:
@@ -629,7 +629,8 @@ def _check_model_format(model_id: str) -> None:
     if "gguf" in model_id_lower or "ggml" in model_id_lower:
         console.print("[red]✗ Cannot convert GGUF/GGML models to MLX format[/red]")
         console.print(
-            "\n[yellow]GGUF models are pre-quantized for llama.cpp and cannot be converted to MLX.[/yellow]"
+            "\n[yellow]GGUF models are pre-quantized for llama.cpp "
+            "and cannot be converted to MLX.[/yellow]"
         )
         console.print("\n[bold]Options:[/bold]")
         console.print("  1. Use an MLX-optimized version from mlx-community:")
@@ -644,7 +645,7 @@ def _check_model_format(model_id: str) -> None:
     if "-awq" in model_id_lower:
         console.print("[red]✗ Cannot convert AWQ models to MLX format[/red]")
         console.print(
-            "\n[yellow]AWQ models use a different quantization format incompatible with MLX.[/yellow]"
+            "\n[yellow]AWQ models use a quantization format incompatible with MLX.[/yellow]"
         )
         console.print("\n[bold]Options:[/bold]")
         console.print("  1. Use an MLX-optimized version from mlx-community")
@@ -655,7 +656,7 @@ def _check_model_format(model_id: str) -> None:
     if "-gptq" in model_id_lower or "gptq" in model_id_lower:
         console.print("[red]✗ Cannot convert GPTQ models to MLX format[/red]")
         console.print(
-            "\n[yellow]GPTQ models use a different quantization format incompatible with MLX.[/yellow]"
+            "\n[yellow]GPTQ models use a quantization format incompatible with MLX.[/yellow]"
         )
         console.print("\n[bold]Options:[/bold]")
         console.print("  1. Use an MLX-optimized version from mlx-community")
@@ -683,7 +684,7 @@ def _download_and_convert(
                 if recommended == "too_large":
                     max_size = get_max_model_size_gb(hw)
                     console.print(
-                        f"[red]✗ Model too large for available memory (~{max_size:.0f} GB max)[/red]"
+                        f"[red]✗ Model too large for memory (~{max_size:.0f} GB max)[/red]"
                     )
                     console.print("\nTry a smaller model or lower quantization.")
                     raise typer.Exit(code=1)
@@ -706,10 +707,8 @@ def _download_and_convert(
     else:
         # Default: ~/.local/share/local-ai/models/{model_name}
         model_name = model_id.replace("/", "_")
-        if q_bits:
-            model_name = f"{model_name}-{q_bits}bit-mlx"
-        else:
-            model_name = f"{model_name}-mlx"
+        suffix = f"-{q_bits}bit-mlx" if q_bits else "-mlx"
+        model_name = f"{model_name}{suffix}"
         mlx_path = Path.home() / ".local" / "share" / "local-ai" / "models" / model_name
 
     console.print(f"[bold]Converting {model_id} to MLX format...[/bold]")
@@ -739,7 +738,7 @@ def _download_and_convert(
         if "No safetensors found" in error_msg:
             console.print("[red]✗ Cannot convert: No safetensors weights found[/red]")
             console.print(
-                "\n[yellow]This model doesn't contain safetensors weights required for MLX conversion.[/yellow]"
+                "\n[yellow]This model doesn't have safetensors weights for MLX conversion.[/yellow]"
             )
             console.print("\nPossible reasons:")
             console.print("  • Model uses GGUF, GGML, or other incompatible format")
