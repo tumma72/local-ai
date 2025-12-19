@@ -70,6 +70,7 @@ def cli_runner() -> CliRunner:
             "COLUMNS": "200",  # Wide terminal to prevent line wrapping
             "LINES": "50",
             "TERM": "xterm-256color",
+            "NO_COLOR": "1",  # Disable Rich's fancy formatting
         }
     )
 

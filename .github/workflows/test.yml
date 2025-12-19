@@ -43,6 +43,7 @@ jobs:
           COLUMNS: "200"  # Ensure consistent terminal width for Rich/Typer
           LINES: "50"
           TERM: xterm-256color
+          NO_COLOR: "1"  # Disable Rich's fancy formatting for predictable output
         run: uv run --no-sources pytest --cov=local_ai --cov-report=xml --cov-report=term-missing
 
       - name: Upload coverage to Codecov
