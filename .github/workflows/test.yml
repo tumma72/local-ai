@@ -34,13 +34,8 @@ jobs:
 
       - name: Run type checker
         run: |
-          # Create mypy override to ignore mlx package type stub errors
-          cat >> pyproject.toml << 'EOF'
-
-          [[tool.mypy.overrides]]
-          module = ["mlx.*"]
-          ignore_errors = true
-          EOF
+          # Remove mlx package type stubs that have syntax errors
+          rm -rf .venv/lib/python*/site-packages/mlx/*.pyi
           uv run --no-sources mypy src/
 
       - name: Run tests with coverage
