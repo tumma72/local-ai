@@ -35,7 +35,7 @@ jobs:
       - name: Run type checker
         run: |
           # Remove mlx package type stubs that have syntax errors
-          rm -rf .venv/lib/python*/site-packages/mlx/*.pyi
+          find .venv -path "*/mlx/*.pyi" -delete 2>/dev/null || true
           uv run --no-sources mypy src/
 
       - name: Run tests with coverage
