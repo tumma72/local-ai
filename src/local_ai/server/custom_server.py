@@ -40,7 +40,7 @@ class CustomServer:
         try:
             # Import MLX Omni Server's FastAPI app
             mlx_omni_server = importlib.import_module("mlx_omni_server.main")
-            mlx_app = mlx_omni_server.app
+            mlx_app: FastAPI = mlx_omni_server.app
 
             # Get our welcome app
             welcome_app = self.welcome_app.get_fastapi_app()
@@ -68,7 +68,7 @@ class CustomServer:
             _logger.exception(message)
             raise RuntimeError(message) from e
 
-    def run(self, host: str, port: int):
+    def run(self, host: str, port: int) -> None:
         """Run the custom server.
 
         Args:

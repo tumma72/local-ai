@@ -15,7 +15,7 @@ from local_ai.server.custom_server import CustomServer
 _logger = get_logger("ServerMain")
 
 
-def main():
+def main() -> None:
     """Main entry point for local-ai server."""
     parser = argparse.ArgumentParser(
         description="local-ai custom server with welcome page and model tester"

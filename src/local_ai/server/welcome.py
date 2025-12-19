@@ -51,7 +51,7 @@ class WelcomeApp:
         """Setup all FastAPI routes."""
 
         @self.app.get("/", response_class=HTMLResponse)
-        async def welcome_page(request: Request):
+        async def welcome_page(request: Request) -> HTMLResponse:
             """Serve welcome page with server status and model tester."""
             try:
                 # Get server status
@@ -60,7 +60,7 @@ class WelcomeApp:
 
                 # Don't fetch models server-side - let JavaScript do it client-side
                 # This ensures the page loads immediately without waiting for model discovery
-                models = []  # Start empty, JavaScript will populate dynamically
+                models: list[str] = []  # Start empty, JavaScript will populate dynamically
 
                 return self.templates.TemplateResponse(
                     request, "welcome.html", {"status": status, "models": models}
@@ -77,7 +77,7 @@ class WelcomeApp:
                 )
 
         @self.app.post("/api/chat")
-        async def proxy_chat(request: Request):
+        async def proxy_chat(request: Request) -> dict[str, object]:
             """Proxy chat requests to MLX Omni Server.
 
             This endpoint allows the welcome page to test models without CORS issues.
@@ -124,14 +124,14 @@ class WelcomeApp:
                 ) from None
 
         @self.app.get("/api/status")
-        async def get_status():
+        async def get_status() -> dict[str, int | float | str | None]:
             """Get server status including uptime and memory usage.
 
             Returns:
                 JSON with pid, memory_mb, uptime_seconds, and loaded_model.
             """
             try:
-                result = {
+                result: dict[str, int | float | str | None] = {
                     "pid": None,
                     "memory_mb": None,
                     "uptime_seconds": None,

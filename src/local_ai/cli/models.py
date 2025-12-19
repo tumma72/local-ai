@@ -344,7 +344,7 @@ def recommend(
 
     # Output based on format
     if output_format == "json":
-        output = {
+        output: object = {
             "model": {
                 "id": recommendation.model_id,
                 "type": recommendation.model_type,
@@ -516,7 +516,7 @@ def _fetch_context_length(model_id: str) -> int | None:
             or config.get("n_positions")
             or config.get("max_sequence_length")
         )
-        return context_length
+        return int(context_length) if context_length else None
 
     except Exception as e:
         _logger.debug("Could not fetch context length: {}", e)
