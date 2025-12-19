@@ -77,7 +77,7 @@ class WelcomeApp:
                 )
 
         @self.app.post("/api/chat")
-        async def proxy_chat(request: Request) -> dict[str, object]:
+        async def proxy_chat(request: Request) -> object:
             """Proxy chat requests to MLX Omni Server.
 
             This endpoint allows the welcome page to test models without CORS issues.
