@@ -1,5 +1,6 @@
 """Pytest configuration and shared fixtures."""
 
+import os
 import tempfile
 from collections.abc import Generator
 from pathlib import Path
@@ -7,6 +8,13 @@ from typing import TYPE_CHECKING
 
 import pytest
 from typer.testing import CliRunner
+
+
+# Configure consistent terminal settings for Rich/Typer in CI environments
+# This ensures help output is not truncated or wrapped differently
+os.environ.setdefault("COLUMNS", "200")  # Wide terminal to prevent wrapping
+os.environ.setdefault("LINES", "50")
+os.environ.setdefault("TERM", "xterm-256color")  # Standard terminal type
 
 from local_ai.benchmark.schema import BenchmarkTask, TaskDifficulty
 from local_ai.config.schema import LocalAISettings, ModelConfig, ServerConfig
